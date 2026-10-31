@@ -1,0 +1,32 @@
+{
+  "name": "overgrowth",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Overgrowth: a live multiplayer territory strategy game of rival flowering plants in an abandoned city.",
+  "scripts": {
+    "dev": "concurrently -k -n server,client -c green,blue \"tsx watch server/index.ts\" \"vite\"",
+    "build": "vite build",
+    "start": "NODE_ENV=production tsx server/index.ts",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit",
+    "sim": "tsx bots/sim.ts"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "three": "^0.187.0",
+    "tsx": "^4.23.15",
+    "ws": "^8.22.1"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.6",
+    "@types/three": "^0.187.0",
+    "@types/ws": "^8.18.2",
+    "concurrently": "^10.0.6",
+    "typescript": "^7.0.2",
+    "vite": "^8.3.5",
+    "vitest": "^5.0.5"
+  }
+}
