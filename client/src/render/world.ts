@@ -20,7 +20,7 @@ export interface Badge {
 }
 
 const SOIL = new THREE.Color('#3B3026');
-const SMOG_GREY = new THREE.Color('#6A6D6E');
+const SMOG_GREY = new THREE.Color('#3E4851'); // unexplored buildings: dimmed to match the shroud
 const ZERO = new THREE.Matrix4().makeScale(0, 0, 0);
 
 /** Bigger stacks grow bigger plants: the city should look properly overgrown. */
@@ -199,16 +199,18 @@ export class World {
     this.sprouts = new ChunkPool({ stem: 2, ball: 4 }, N, { shadows: false });
     this.scene.add(this.trees.group, this.hydrants.group, this.sprouts.group, this.petals.mesh);
 
-    this.fog = new Fog(N, (i, y) => this.tilePos(i, y));
+    this.fog = new Fog(this.W, this.H);
     this.scene.add(this.fog.group);
 
     // Weather: a cloud of grey puffs, rain streaks and a wet sheen on the ground.
-    const puff = new THREE.MeshStandardMaterial({ color: '#B8BEC2', roughness: 1, flatShading: true, transparent: true, opacity: 0 });
+    const puff = new THREE.MeshStandardMaterial({ color: '#B8BEC2', roughness: 1, transparent: true, opacity: 0, depthWrite: false });
+    const puffGeo = new THREE.SphereGeometry(1, 14, 10);
     for (let k = 0; k < 14; k++) {
-      const m = new THREE.Mesh(KINDS.leaf.geo, puff);
+      const m = new THREE.Mesh(puffGeo, puff);
       const a = (k / 14) * Math.PI * 2;
       m.position.set(Math.cos(a) * (0.6 + Math.random() * 0.5), Math.random() * 0.3, Math.sin(a) * (0.6 + Math.random() * 0.5));
-      m.scale.setScalar(0.55 + Math.random() * 0.35);
+      const sc = 0.55 + Math.random() * 0.35;
+      m.scale.set(sc, sc * 0.6, sc);
       this.cloud.add(m);
     }
     this.cloud.visible = false;
@@ -429,6 +431,14 @@ export class World {
     return p;
   }
 
+  private cloudsOn = true;
+
+  /** Clouds (fog-of-war clouds and the shower cloud's puffs). Off in top-down, where the map matters most. */
+  setClouds(on: boolean) {
+    this.cloudsOn = on;
+    this.fog.setClouds(on);
+  }
+
   /** Height of whatever static geometry is at (x, z): rooftops for props. */
   roofAt(x: number, z: number): number {
     const rc = new THREE.Raycaster(V(x, 30, z), V(0, -1, 0));
@@ -496,6 +506,8 @@ export class World {
       puff.opacity += (this.cloudTarget - puff.opacity) * Math.min(1, dt * 1.5);
       puff.color.set(this.shower ? '#8E959A' : '#B8BEC2');
       if (puff.opacity < 0.02 && !this.cloudTarget) this.cloud.visible = false;
+      if (!this.cloudsOn) this.cloud.visible = false;
+      else if (this.cloudTarget) this.cloud.visible = true;
       this.cloud.rotation.y += dt * 0.05;
       this.cloud.position.y = 4.6 + Math.sin(now * 0.0008) * 0.1;
     }
@@ -709,7 +721,7 @@ export class World {
       for (let y = b.y; y < b.y + b.h; y++) for (let x = b.x; x < b.x + b.w; x++) if (g.tiles[y * this.W + x].visible) seen = true;
       const hidden = !seen;
       if (hidden !== this.buildingHidden[k] || all) {
-        this.city.tint(`b${k}`, SMOG_GREY, hidden ? 0.55 : 0);
+        this.city.tint(`b${k}`, SMOG_GREY, hidden ? 0.5 : 0);
         this.buildingHidden[k] = hidden;
       }
     });
@@ -742,7 +754,7 @@ export class World {
     }
     this.petals.frame(now, dt);
     this.critters.frame(now, dt);
-    this.fog.frame(dt);
+    this.fog.frame(dt, now);
     this.jetFrame(now);
     this.weatherFrame(now, dt);
     // Disco garden (an easter egg): the lights dance.

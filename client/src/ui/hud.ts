@@ -57,12 +57,13 @@ export class Hud {
           ${EMOTES.map((e, k) => `<button class="emote" data-e="${k}" title="${e.label} (${k + 1})" aria-label="Emote: ${e.label}">${e.emoji}<kbd>${k + 1}</kbd></button>`).join('')}
         </div>
         <section class="panel settings" id="settings" hidden aria-label="Camera settings">
-          <div class="eyebrow">Camera</div>
+          <div class="eyebrow">View</div>
           <label class="slider"><span>Rotate speed</span><input type="range" id="s-rot" min="0.05" max="1.2" step="0.05"></label>
           <label class="slider"><span>Pan speed</span><input type="range" id="s-pan" min="0.3" max="3" step="0.1"></label>
           <label class="slider"><span>Zoom speed</span><input type="range" id="s-zoom" min="0.3" max="3" step="0.1"></label>
           <label class="switch"><input type="checkbox" id="s-drag"><span>Left-drag pans (off: left-drag rotates)</span></label>
           <label class="switch"><input type="checkbox" id="s-map"><span>Map colours in top-down</span></label>
+          <label class="switch"><input type="checkbox" id="s-clouds"><span>Clouds over unexplored areas</span></label>
           <button class="btn small" id="s-reset">Reset to defaults</button>
         </section>
         <div class="panel controls">
@@ -76,7 +77,7 @@ export class Hud {
     </div>`);
     const top = this.q<HTMLInputElement>('#top');
     const rot = this.q<HTMLInputElement>('#s-rot'), pan = this.q<HTMLInputElement>('#s-pan'), zoom = this.q<HTMLInputElement>('#s-zoom');
-    const drag = this.q<HTMLInputElement>('#s-drag'), map = this.q<HTMLInputElement>('#s-map');
+    const drag = this.q<HTMLInputElement>('#s-drag'), map = this.q<HTMLInputElement>('#s-map'), clouds = this.q<HTMLInputElement>('#s-clouds');
     const sync = () => {
       const s = view.settings;
       top.checked = s.topDown;
@@ -85,6 +86,7 @@ export class Hud {
       zoom.value = String(s.zoomSpeed);
       drag.checked = s.dragPans;
       map.checked = s.mapLayer;
+      clouds.checked = s.clouds;
     };
     sync();
     top.addEventListener('change', () => { view.update({ topDown: top.checked }); sync(); });
@@ -93,6 +95,7 @@ export class Hud {
     zoom.addEventListener('input', () => view.update({ zoomSpeed: Number(zoom.value) }));
     drag.addEventListener('change', () => view.update({ dragPans: drag.checked }));
     map.addEventListener('change', () => view.update({ mapLayer: map.checked }));
+    clouds.addEventListener('change', () => view.update({ clouds: clouds.checked }));
     this.q('#s-reset').addEventListener('click', () => { view.update({ ...DEFAULT_VIEW, topDown: view.settings.topDown }); sync(); });
     const gear = this.q('#gear'), panel = this.q('#settings');
     gear.addEventListener('click', () => {

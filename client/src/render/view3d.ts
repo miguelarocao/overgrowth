@@ -22,10 +22,12 @@ export interface ViewSettings {
   dragPans: boolean;
   /** Team colours, hatched buildings and outlines drawn over the top-down view. */
   mapLayer: boolean;
+  /** Broken clouds drifting over unexplored areas (the dimmed shroud is always on). */
+  clouds: boolean;
 }
 
 const SETTINGS_KEY = 'og-view2';
-export const DEFAULT_VIEW: ViewSettings = { topDown: false, rotateSpeed: 0.35, panSpeed: 1, zoomSpeed: 1, dragPans: true, mapLayer: true };
+export const DEFAULT_VIEW: ViewSettings = { topDown: false, rotateSpeed: 0.35, panSpeed: 1, zoomSpeed: 1, dragPans: true, mapLayer: true, clouds: true };
 
 export function loadSettings(): ViewSettings {
   try {
@@ -125,7 +127,10 @@ export class View3D {
     this.world?.dispose();
     this.world = world;
     this.renderPass.scene = world ? world.scene : this.emptyScene;
-    if (world) this.resetCamera();
+    if (world) {
+      world.setClouds(this.settings.clouds && !this.settings.topDown);
+      this.resetCamera();
+    }
   }
 
   resetCamera() {
@@ -194,6 +199,7 @@ export class View3D {
       ? { LEFT: THREE.MOUSE.PAN, MIDDLE: THREE.MOUSE.DOLLY, RIGHT: THREE.MOUSE.ROTATE }
       : { LEFT: THREE.MOUSE.ROTATE, MIDDLE: THREE.MOUSE.DOLLY, RIGHT: THREE.MOUSE.PAN };
     this.orthoControls.mouseButtons = { LEFT: THREE.MOUSE.PAN, MIDDLE: THREE.MOUSE.DOLLY, RIGHT: THREE.MOUSE.PAN };
+    this.world?.setClouds(s.clouds && !s.topDown);
     this.controls.enabled = !s.topDown;
     this.orthoControls.enabled = s.topDown;
     this.renderPass.camera = this.camera;

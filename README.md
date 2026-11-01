@@ -51,8 +51,9 @@ Arrow keys follow the screen: if you orbit the camera 90°, "up" still means up 
 
 - **A 2-minute tutorial** runs on your first game (and from the home page, or **?** in game).
   Each step waits for you to actually do the thing.
-- **Fog of war** is a real fog bank: everything you can't see is buried in smog, and only tall
-  buildings poke out above it. Your growth rolls it back.
+- **Fog of war** is faked for readability: unexplored ground is dimmed (the city layout stays
+  readable, only who-owns-what is hidden), with soft drifting cloud shadows and broken clouds
+  floating above it. Clouds can be turned off in ⚙ Settings and are always off in top-down.
 - **Every team looks different**, not just in colour: morning glory grows vine arches, sunflowers
   tall stalks, lavender spiky tufts, roses dense round shrubs, poppies cups on thin stems, daisies
   a flat white carpet, cherry tiny blossom trees, bluebells weeping fountains of bells. Owned
@@ -95,7 +96,7 @@ client/       Vite + TypeScript + three.js
   src/render/kit.ts    instancing toolkit (one InstancedMesh per part type, per-tile chunks)
   src/render/recipes.ts bushes, trees, buildings, props (ported from the reference)
   src/render/world.ts  the diorama: city, growth, hydrants, ivy, sprouts, capture effects
-  src/render/fog.ts    fog of war
+  src/render/fog.ts    fog of war (shader: dimmed shroud + drifting clouds)
   src/render/view3d.ts renderer, cameras and controls, badge overlay, top-down map layer
 bots/         deterministic bot + headless simulator
 reference/    overgrowth-3d.html
