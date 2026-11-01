@@ -315,8 +315,19 @@ export function car(r: Rng): Recipe {
   return rc.transform(r() * Math.PI, V(0, SLAB_TOP - 0.02, 0));
 }
 
-export function billboardTexture(): THREE.CanvasTexture {
-  const c = document.createElement('canvas');
+export const BILLBOARDS = [
+  ['SUNNY DAYS', 'AHEAD'],
+  ['WATER YOUR', 'COWORKERS'],
+  ['LEAF IT ALL', 'BEHIND'],
+  ['CONCRETE IS', 'TEMPORARY'],
+  ['PHOTOSYNTHESIZE', 'RESPONSIBLY'],
+  ['YOU HAD ME', 'AT HELLO-PHYLL'],
+  ['ROOTS BEFORE', 'SHOOTS'],
+  ['GROW FOR IT', '']
+];
+
+export function billboardTexture(lines = BILLBOARDS[0], canvas?: HTMLCanvasElement): THREE.CanvasTexture {
+  const c = canvas ?? document.createElement('canvas');
   c.width = 512;
   c.height = 224;
   const x = c.getContext('2d')!;
@@ -327,10 +338,11 @@ export function billboardTexture(): THREE.CanvasTexture {
   x.arc(420, 112, 70, 0, Math.PI * 2);
   x.fill();
   x.fillStyle = '#A8483A';
-  x.font = '900 58px Impact, "Arial Black", sans-serif';
   x.textBaseline = 'middle';
-  x.fillText('SUNNY DAYS', 28, 82);
-  x.fillText('AHEAD', 28, 148);
+  for (const [k, line] of lines.entries()) {
+    x.font = `900 ${Math.min(58, Math.floor(58 * 13 / Math.max(10, line.length)))}px Impact, "Arial Black", sans-serif`;
+    x.fillText(line, 28, k ? 148 : 82);
+  }
   x.fillStyle = '#8F8A80';
   for (const rr of [[300, 20, 90, 60], [60, 170, 120, 40], [200, 120, 70, 50], [460, 150, 52, 74]]) x.fillRect(rr[0], rr[1], rr[2], rr[3]);
   const g = x.createLinearGradient(0, 0, 0, 224);

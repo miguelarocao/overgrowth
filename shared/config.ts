@@ -16,3 +16,17 @@ export const WATER_GARRISON_MAX = 50;
 export function boardSize(playerCount: number): number {
   return playerCount <= 4 ? 20 : 26;
 }
+
+/** Game pace options (tick length). */
+export const PACES = { relaxed: 500, brisk: 350, frantic: 250 } as const;
+export type Pace = keyof typeof PACES;
+
+/** Quick emotes, sent with keys 1-6. */
+export const EMOTES: readonly { emoji: string; label: string }[] = [
+  { emoji: '🌱', label: 'gg' },
+  { emoji: '🌸', label: 'bloom!' },
+  { emoji: '🐝', label: 'bzzz' },
+  { emoji: '💧', label: 'thirsty' },
+  { emoji: '🥀', label: 'oof' },
+  { emoji: '👀', label: 'I see you' }
+];

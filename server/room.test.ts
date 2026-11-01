@@ -169,3 +169,34 @@ describe('reconnect races', () => {
     expect(room.seats.find((s) => s.token === token)!.conn).toBe(reloaded);
   });
 });
+
+describe('fun bits', () => {
+  it('host options, emotes (rate-limited) and awards on game over', () => {
+    let now = 0;
+    let interval = 0;
+    const room = new Room('f', { now: () => now, random: () => 0.5, startTicking: (ms) => (interval = ms), stopTicking() {} });
+    const a = new FakeConn(), b = new FakeConn();
+    room.join(a, 'A');
+    room.join(b, 'B');
+    room.handle(b, { t: 'setOptions', pace: 'frantic' });
+    expect(a.last('lobby')!.options.pace).toBe('relaxed');
+    room.handle(a, { t: 'setOptions', pace: 'frantic', showers: false });
+    expect(b.last('lobby')!.options).toEqual({ pace: 'frantic', showers: false });
+    room.handle(a, { t: 'start' });
+    expect(interval).toBe(250);
+    expect(a.last('started')!.tickMs).toBe(250);
+    expect(a.last('started')!.rules.showers).toBe(false);
+    room.handle(a, { t: 'emote', e: 1 });
+    room.handle(a, { t: 'emote', e: 2 }); // too soon
+    expect(b.all('emote').map((m) => m.e)).toEqual([1]);
+    now += 1500;
+    room.handle(a, { t: 'emote', e: 99 }); // invalid
+    room.handle(a, { t: 'emote', e: 3 });
+    expect(b.all('emote').map((m) => [m.e, m.name])).toEqual([[1, 'A'], [3, 'A']]);
+    for (let i = 0; i < 40; i++) room.tick();
+    expect(a.last('tick')!.weather).toEqual({ now: null, next: null });
+    room.handle(b, { t: 'surrender' });
+    room.tick();
+    expect(Array.isArray(a.last('gameOver')!.awards)).toBe(true);
+  });
+});

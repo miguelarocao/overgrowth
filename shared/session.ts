@@ -138,8 +138,10 @@ export class GameSession {
     return { tick: this.state.tick, executed, dropped, eliminations: res.eliminations, surrendered, over, winner };
   }
 
-  toReplay(id: string, players: { name: string; team: string }[], winner: PlayerId | null): Replay {
+  toReplay(id: string, players: { name: string; team: string }[], winner: PlayerId | null, tickMs?: number): Replay {
     return {
+      rules: this.initial.rules,
+      tickMs,
       version: 1,
       id,
       seed: this.initial.seed,

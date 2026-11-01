@@ -7,6 +7,8 @@ import { TEAMS, teamColor } from '../../../shared/teams';
 import type { ClientGame } from '../game';
 import { ChunkPool, type Inst, type Kind, KINDS, Recipe, rngFrom, StaticBatch, V, pick } from './kit';
 import * as R from './recipes';
+import { Critters } from './critters';
+import type { Weather } from '../../../shared/protocol';
 
 export interface Badge {
   pos: THREE.Vector3;
@@ -42,17 +44,18 @@ const easeOutBack = (p: number) => {
 class Petals {
   readonly mesh: THREE.InstancedMesh;
   private parts: { p: THREE.Vector3; v: THREE.Vector3; q: THREE.Quaternion; spin: THREE.Quaternion; t0: number; life: number }[] = [];
-  private cap = 600;
+  private cap = 1500;
   constructor() {
     this.mesh = new THREE.InstancedMesh(KINDS.disc.geo, new THREE.MeshStandardMaterial({ color: '#fff', roughness: 0.7, flatShading: true }), this.cap);
     this.mesh.count = 0;
     this.mesh.frustumCulled = false;
     this.mesh.setColorAt(0, new THREE.Color('#fff'));
   }
-  burst(at: THREE.Vector3, color: string, now: number) {
-    const base = new THREE.Color(color);
-    for (let k = 0; k < 60 && this.parts.length < this.cap; k++) {
-      const a = Math.random() * Math.PI * 2, up = 1.2 + Math.random() * 1.6, out = 0.6 + Math.random() * 1.2;
+  burst(at: THREE.Vector3, color: string | string[], now: number, count = 60, power = 1) {
+    const palette = (Array.isArray(color) ? color : [color]).map((c) => new THREE.Color(c));
+    for (let k = 0; k < count && this.parts.length < this.cap; k++) {
+      const base = palette[k % palette.length];
+      const a = Math.random() * Math.PI * 2, up = (1.2 + Math.random() * 1.6) * power, out = (0.6 + Math.random() * 1.2) * power;
       const idx = this.parts.length;
       this.parts.push({
         p: at.clone().add(V(0, 0.3, 0)), v: V(Math.cos(a) * out, up, Math.sin(a) * out),
@@ -125,7 +128,18 @@ export class World {
   private growing = new Map<number, { t0: number; scale: number; origin: THREE.Vector3 }>();
   readonly selection = squareOutline('#FFFFFF', 0.9);
   readonly hover = squareOutline('#FFFFFF', 0.3, 0.35);
-  private billboards: THREE.Mesh[] = [];
+  readonly billboards: THREE.Mesh[] = [];
+  private billboardText = new Map<THREE.Mesh, { canvas: HTMLCanvasElement; tex: THREE.CanvasTexture; n: number }>();
+  critters!: Critters;
+  private hemi!: THREE.HemisphereLight;
+  private sun!: THREE.DirectionalLight;
+  discoUntil = 0;
+  private cloud = new THREE.Group();
+  private rain: THREE.InstancedMesh;
+  private wet: THREE.Mesh;
+  private shower: Weather['now'] = null;
+  private cloudTarget = 0;
+  private rainEdge = new THREE.Group();
   private lastFrame = 0;
   badges: Badge[] = [];
 
@@ -138,8 +152,10 @@ export class World {
     this.scene.fog = new THREE.Fog(sky, this.W * 1.6, this.W * 3.4);
 
     // Lights.
-    this.scene.add(new THREE.HemisphereLight('#D3D9D4', '#3A342E', 1.15));
+    this.hemi = new THREE.HemisphereLight('#D3D9D4', '#3A342E', 1.15);
+    this.scene.add(this.hemi);
     const sun = new THREE.DirectionalLight('#FFF0DA', 1.7);
+    this.sun = sun;
     sun.position.set(this.W * 0.35, this.W * 0.75, this.W * 0.25);
     sun.castShadow = true;
     sun.shadow.mapSize.set(2048, 2048);
@@ -171,6 +187,27 @@ export class World {
     for (let i = 0; i < N; i++) this.smog.setMatrixAt(i, ZERO);
     this.smog.setColorAt(0, HAZE);
     this.scene.add(this.smog);
+
+    // Weather: a cloud of grey puffs, rain streaks and a wet sheen on the ground.
+    const puff = new THREE.MeshStandardMaterial({ color: '#B8BEC2', roughness: 1, flatShading: true, transparent: true, opacity: 0 });
+    for (let k = 0; k < 14; k++) {
+      const m = new THREE.Mesh(KINDS.leaf.geo, puff);
+      const a = (k / 14) * Math.PI * 2;
+      m.position.set(Math.cos(a) * (0.6 + Math.random() * 0.5), Math.random() * 0.3, Math.sin(a) * (0.6 + Math.random() * 0.5));
+      m.scale.setScalar(0.55 + Math.random() * 0.35);
+      this.cloud.add(m);
+    }
+    this.cloud.visible = false;
+    this.rain = new THREE.InstancedMesh(KINDS.box.geo, new THREE.MeshBasicMaterial({ color: '#CFE3EA', transparent: true, opacity: 0.55 }), 260);
+    this.rain.frustumCulled = false;
+    this.rain.visible = false;
+    this.wet = new THREE.Mesh(new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI / 2), new THREE.MeshStandardMaterial({ color: '#7FA7C0', transparent: true, opacity: 0, roughness: 0.1, metalness: 0.3, depthWrite: false }));
+    this.wet.visible = false;
+    this.scene.add(this.cloud, this.rain, this.wet, this.rainEdge);
+
+    this.critters = new Critters(this.W, this.H, (i, y) => this.tilePos(i, y), (x, z) => this.roofAt(x, z),
+      (i) => game.tiles[i].owner === null && game.tiles[i].kind !== 'building' && game.tiles[i].kind !== 'water' && i !== game.fountain, game.buildings);
+    this.scene.add(this.critters.group);
 
     this.selection.position.y = 0.13;
     this.hover.position.y = 0.125;
@@ -233,9 +270,7 @@ export class World {
       }
     }
     add('base', base);
-    const tex = R.billboardTexture();
     const side = new THREE.MeshStandardMaterial({ color: '#4A4844', roughness: 0.9, flatShading: true });
-    const face = new THREE.MeshStandardMaterial({ map: tex, roughness: 0.95 });
     g.buildings.forEach((b, k) => {
       const cx = b.x + (b.w - 1) / 2 - (this.W - 1) / 2;
       const cz = b.y + (b.h - 1) / 2 - (this.H - 1) / 2;
@@ -251,7 +286,13 @@ export class World {
       add(`b${k}`, rc.transform(0, V(cx, 0, cz)));
       if (b.style === 'shop') {
         const bb = R.shopBillboard(b.w, b.h);
+        // Usually the classic ad; sometimes one of the rarer ones. Click to flip through them.
+        const n = Math.random() < 0.7 ? 0 : 1 + Math.floor(Math.random() * (R.BILLBOARDS.length - 1));
+        const canvas = document.createElement('canvas');
+        const tex = R.billboardTexture(R.BILLBOARDS[n], canvas);
+        const face = new THREE.MeshStandardMaterial({ map: tex, roughness: 0.95 });
         const panel = new THREE.Mesh(KINDS.box.geo, [side, side, side, side, face, side]);
+        this.billboardText.set(panel, { canvas, tex, n });
         panel.scale.set(bb.width, bb.height, 0.05);
         panel.position.set(cx, bb.y, cz + bb.z);
         panel.castShadow = true;
@@ -271,6 +312,96 @@ export class World {
       this.scene.add(p.group);
     }
     return p;
+  }
+
+  /** Height of whatever static geometry is at (x, z): rooftops for props. */
+  roofAt(x: number, z: number): number {
+    const rc = new THREE.Raycaster(V(x, 30, z), V(0, -1, 0));
+    const hit = rc.intersectObject(this.city.group, true)[0];
+    return hit ? hit.point.y : R.SLAB_TOP;
+  }
+
+  /** Flip a billboard to its next message. */
+  flipBillboard(panel: THREE.Object3D) {
+    const b = this.billboardText.get(panel as THREE.Mesh);
+    if (!b) return;
+    b.n = (b.n + 1) % R.BILLBOARDS.length;
+    R.billboardTexture(R.BILLBOARDS[b.n], b.canvas);
+    b.tex.needsUpdate = true;
+  }
+
+  burst(i: number, colors: string | string[], count = 60, power = 1, y = 0) {
+    this.petals.burst(this.tilePos(i, y), colors, performance.now(), count, power);
+  }
+
+  /** Petal confetti over the whole board (victory!). */
+  confetti(colors: string[]) {
+    const now = performance.now();
+    for (let k = 0; k < 18; k++) {
+      const i = Math.floor(Math.random() * this.W * this.H);
+      this.petals.burst(this.tilePos(i, 1.5 + Math.random() * 2), colors, now + k * 40, 50, 0.8);
+    }
+  }
+
+  setWeather(w: Weather) {
+    const sh = w.now ?? w.next;
+    this.shower = w.now;
+    if (!sh) {
+      this.cloudTarget = 0;
+      this.rainEdge.visible = false;
+      return;
+    }
+    const c = this.tilePos(sh.y * this.W + sh.x).add(V((sh.size - 1) / 2, 0, (sh.size - 1) / 2));
+    this.cloud.position.set(c.x, 4.6, c.z);
+    this.cloud.scale.setScalar(sh.size / 2.6);
+    this.cloud.visible = true;
+    this.cloudTarget = w.now ? 0.72 : 0.4;
+    // Outline the exact tiles that will get rained on.
+    if (this.rainEdge.userData.size !== sh.size) {
+      this.rainEdge.clear();
+      const m = new THREE.MeshStandardMaterial({ color: '#9FD3F0', emissive: '#9FD3F0', emissiveIntensity: 0.8, transparent: true, opacity: 0.8 });
+      const h = sh.size / 2 - 0.02;
+      for (const [dx, dz, w, d] of [[0, h, sh.size, 0.05], [0, -h, sh.size, 0.05], [h, 0, 0.05, sh.size], [-h, 0, 0.05, sh.size]]) {
+        const e = new THREE.Mesh(KINDS.box.geo, m);
+        e.scale.set(w, 0.03, d);
+        e.position.set(dx, 0, dz);
+        this.rainEdge.add(e);
+      }
+      this.rainEdge.userData.size = sh.size;
+    }
+    this.rainEdge.visible = true;
+    this.rainEdge.position.set(c.x, 0.14, c.z);
+    this.wet.position.set(c.x, 0.112, c.z);
+    this.wet.scale.set(sh.size, 1, sh.size);
+  }
+
+  private weatherFrame(now: number, dt: number) {
+    const puff = (this.cloud.children[0] as THREE.Mesh)?.material as THREE.MeshStandardMaterial;
+    if (puff) {
+      puff.opacity += (this.cloudTarget - puff.opacity) * Math.min(1, dt * 1.5);
+      puff.color.set(this.shower ? '#8E959A' : '#B8BEC2');
+      if (puff.opacity < 0.02 && !this.cloudTarget) this.cloud.visible = false;
+      this.cloud.rotation.y += dt * 0.05;
+      this.cloud.position.y = 4.6 + Math.sin(now * 0.0008) * 0.1;
+    }
+    const wetMat = this.wet.material as THREE.MeshStandardMaterial;
+    wetMat.opacity += ((this.shower ? 0.28 : 0) - wetMat.opacity) * Math.min(1, dt);
+    this.wet.visible = wetMat.opacity > 0.01;
+    this.rain.visible = !!this.shower;
+    if (!this.shower) return;
+    const sh = this.shower;
+    const m = new THREE.Matrix4();
+    const c = this.cloud.position;
+    const half = sh.size / 2;
+    for (let k = 0; k < 260; k++) {
+      // Each drop loops on its own phase, so no per-drop state is needed.
+      const seed = k * 12.9898;
+      const fx = (Math.sin(seed) * 43758.5453) % 1, fz = (Math.sin(seed * 1.7) * 24634.6345) % 1;
+      const ph = ((now * 0.0011 + Math.abs((Math.sin(seed * 3.1) * 9301) % 1)) % 1);
+      m.compose(V(c.x + fx * half, 4.3 - ph * 4.2, c.z + fz * half), new THREE.Quaternion(), V(0.012, 0.22, 0.012));
+      this.rain.setMatrixAt(k, m);
+    }
+    this.rain.instanceMatrix.needsUpdate = true;
   }
 
   private setGround(i: number, team: string | null, soil: boolean) {
@@ -362,6 +493,8 @@ export class World {
         this.sig.bush[i] = bushSig;
       }
 
+      if (changed && t.visible && t.owner !== null && prevOwner !== t.owner) this.critters.scare(i, now);
+
       // Petal burst when water or a mother plant changes hands in view.
       if (changed && wasVisible && t.visible && t.owner !== null && prevOwner !== t.owner && (water || this.sig.kind[i] === 'mother')) {
         this.petals.burst(this.tilePos(i), teamColor(team ?? undefined), now);
@@ -448,6 +581,20 @@ export class World {
       if (p >= 1) this.growing.delete(i);
     }
     this.petals.frame(now, dt);
+    this.critters.frame(now, dt);
+    this.weatherFrame(now, dt);
+    // Disco garden (an easter egg): the lights dance.
+    if (now < this.discoUntil) {
+      const h = (now * 0.0004) % 1;
+      this.hemi.color.setHSL(h, 0.7, 0.65);
+      this.sun.color.setHSL((h + 0.5) % 1, 0.8, 0.6);
+      this.sun.intensity = 1.7 + Math.sin(now * 0.012) * 0.6;
+    } else if (this.discoUntil) {
+      this.discoUntil = 0;
+      this.hemi.color.set('#D3D9D4');
+      this.sun.color.set('#FFF0DA');
+      this.sun.intensity = 1.7;
+    }
   }
 
   dispose() {
@@ -459,6 +606,7 @@ export class World {
     this.ground.dispose();
     this.smog.dispose();
     this.petals.mesh.dispose();
-    for (const b of this.billboards) b.geometry !== KINDS.box.geo && b.geometry.dispose();
+    for (const { tex } of this.billboardText.values()) tex.dispose();
+    this.rain.dispose();
   }
 }

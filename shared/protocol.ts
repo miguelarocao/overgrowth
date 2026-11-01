@@ -1,5 +1,8 @@
 // JSON over WebSocket. Shared by the server, the browser and the offline room.
-import type { Building, PlayerId, QueuedMove, TileKind, ViewTile } from './types';
+import type { Building, PlayerId, QueuedMove, Rules, TileKind, ViewTile } from './types';
+import type { Pace } from './config';
+import type { Shower } from './weather';
+import type { Award } from './awards';
 import { KINDS } from './types';
 
 export interface LobbyPlayer {
@@ -8,6 +11,16 @@ export interface LobbyPlayer {
   team: string;
   bot: boolean;
   connected: boolean;
+}
+
+export interface RoomOptions {
+  showers: boolean;
+  pace: Pace;
+}
+
+export interface Weather {
+  now: Shower | null;
+  next: Shower | null;
 }
 
 export interface PlayerInfo {
@@ -32,6 +45,8 @@ export type ClientMsg =
   | { t: 'addBot' }
   | { t: 'removeBot'; seat: number }
   | { t: 'start' }
+  | { t: 'setOptions'; showers?: boolean; pace?: Pace }
+  | { t: 'emote'; e: number }
   | { t: 'queue'; seq: number; moves: QueuedMove[] }
   | { t: 'clearQueue'; seq: number }
   | { t: 'undo'; seq: number }
@@ -40,7 +55,7 @@ export type ClientMsg =
 
 export type ServerMsg =
   | { t: 'welcome'; token: string; room: string }
-  | { t: 'lobby'; code: string; players: LobbyPlayer[]; host: number | null; you: number | null }
+  | { t: 'lobby'; code: string; players: LobbyPlayer[]; host: number | null; you: number | null; options: RoomOptions }
   | {
       t: 'started';
       width: number;
@@ -52,6 +67,7 @@ export type ServerMsg =
       players: PlayerInfo[];
       tickMs: number;
       tick: number;
+      rules: Rules;
     }
   | {
       t: 'tick';
@@ -65,9 +81,11 @@ export type ServerMsg =
       executed: number | null;
       dropped: number[];
       full: boolean;
+      weather: Weather;
     }
   | { t: 'eliminated'; player: PlayerId; by: PlayerId | null }
-  | { t: 'gameOver'; winner: PlayerId | null; replayId: string | null }
+  | { t: 'emote'; name: string; team: string; player: PlayerId | null; e: number }
+  | { t: 'gameOver'; winner: PlayerId | null; replayId: string | null; awards: Award[] }
   | { t: 'error'; message: string };
 
 export const kindCode = (k: TileKind) => KINDS.indexOf(k);

@@ -1,6 +1,6 @@
 import { step, surrender } from './engine';
 import { generateMap } from './mapgen';
-import type { GameState, Move, PlayerId } from './types';
+import type { GameState, Move, PlayerId, Rules } from './types';
 import { DIRS } from './types';
 
 /** One tick of inputs: moves as [player, from, dirIndex, half] and any surrenders. */
@@ -18,10 +18,13 @@ export interface Replay {
   players: { name: string; team: string }[];
   winner: PlayerId | null;
   ticks: ReplayTick[];
+  /** Rule variants in play (absent in old replays = no variants). */
+  rules?: Rules;
+  tickMs?: number;
 }
 
 export function replayInitial(r: Replay): GameState {
-  const s = generateMap(r.seed, r.playerCount);
+  const s = generateMap(r.seed, r.playerCount, r.rules ?? { showers: false });
   r.players.forEach((p, i) => {
     if (s.players[i]) s.players[i].team = p.team;
   });

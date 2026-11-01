@@ -2,7 +2,7 @@ import { boardSize, FOUNTAIN_GARRISON, MAX_PLAYERS, MIN_PLAYERS, WATER_GARRISON_
 import { bfsDistances, isStreetCoord, neighbors4, passable } from './grid';
 import { hashSeed, mulberry32, pick, randInt } from './rng';
 import { TEAMS } from './teams';
-import type { Building, BuildingStyle, GameState, Tile, TileKind } from './types';
+import { DEFAULT_RULES, type Building, type BuildingStyle, type GameState, type Rules, type Tile, type TileKind } from './types';
 
 interface Block { x0: number; y0: number; x1: number; y1: number }
 
@@ -34,7 +34,7 @@ function styleFor(w: number, h: number, rng: () => number): BuildingStyle {
  * same map. Maps that fail reachability or fairness checks are retried with the
  * next seed, deterministically.
  */
-export function generateMap(seed: number, playerCount: number): GameState {
+export function generateMap(seed: number, playerCount: number, rules: Rules = DEFAULT_RULES): GameState {
   if (!Number.isInteger(playerCount) || playerCount < MIN_PLAYERS || playerCount > MAX_PLAYERS) {
     throw new Error(`playerCount must be ${MIN_PLAYERS}..${MAX_PLAYERS}`);
   }
@@ -42,6 +42,7 @@ export function generateMap(seed: number, playerCount: number): GameState {
     const state = tryGenerate(attempt === 0 ? seed : hashSeed(seed, attempt), playerCount);
     if (state) {
       state.seed = seed;
+      state.rules = { ...rules };
       return state;
     }
   }
@@ -199,6 +200,7 @@ function tryGenerate(seed: number, n: number): GameState | null {
     tiles,
     players: Array.from({ length: n }, (_, id) => ({ id, team: TEAMS[id].key, alive: true })),
     buildings,
-    fountain
+    fountain,
+    rules: { ...DEFAULT_RULES }
   };
 }

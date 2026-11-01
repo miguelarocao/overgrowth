@@ -39,6 +39,15 @@ function saveSettings(s: ViewSettings) {
 
 const CLOCKWISE: Dir[] = ['up', 'right', 'down', 'left'];
 
+export interface Floater {
+  pos: THREE.Vector3;
+  text: string;
+  color: string;
+  t0: number;
+  life: number;
+  size: number;
+}
+
 export class View3D {
   readonly renderer: THREE.WebGLRenderer;
   private composer: EffectComposer;
@@ -58,6 +67,9 @@ export class View3D {
   extraBadges: () => Badge[] = () => [];
   onFrame: (now: number) => void = () => {};
   private emptyScene = new THREE.Scene();
+  private floaters: Floater[] = [];
+  private shakeAmt = 0;
+  private shakeUntil = 0;
 
   constructor(readonly canvas: HTMLCanvasElement, overlay: HTMLCanvasElement) {
     this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
@@ -197,6 +209,31 @@ export class View3D {
     this.applySettings();
   }
 
+  /** Floating text that rises and fades above a world position (drawn sharp, after the blur). */
+  float(pos: THREE.Vector3, text: string, color = '#FFFFFF', size = 15, life = 1100) {
+    if (this.floaters.length > 80) this.floaters.shift();
+    this.floaters.push({ pos: pos.clone(), text, color, t0: performance.now(), life, size });
+  }
+
+  /** A short camera shake. Skipped for people who prefer reduced motion. */
+  shake(amount: number, ms = 450) {
+    if (this.reduced) return;
+    this.shakeAmt = Math.max(this.shakeAmt, amount);
+    this.shakeUntil = performance.now() + ms;
+  }
+
+  /** The first of `objects` (or a child of one) under a screen point. */
+  pickObject(clientX: number, clientY: number, objects: THREE.Object3D[]): THREE.Object3D | null {
+    if (!objects.length) return null;
+    const ndc = new THREE.Vector2((clientX / innerWidth) * 2 - 1, -(clientY / innerHeight) * 2 + 1);
+    this.raycaster.setFromCamera(ndc, this.camera);
+    const hit = this.raycaster.intersectObjects(objects, true)[0];
+    if (!hit) return null;
+    let o: THREE.Object3D | null = hit.object;
+    while (o && !objects.includes(o)) o = o.parent;
+    return o;
+  }
+
   /** Tile under a screen point, or -1. */
   pick(clientX: number, clientY: number): number {
     if (!this.world) return -1;
@@ -246,8 +283,43 @@ export class View3D {
     this.clampTarget(c);
     this.world?.frame(now);
     this.onFrame(now);
+    const cam = this.camera;
+    let jolt: THREE.Vector3 | null = null;
+    if (now < this.shakeUntil) {
+      const k = this.shakeAmt * ((this.shakeUntil - now) / 450);
+      jolt = new THREE.Vector3((Math.random() - 0.5) * k, (Math.random() - 0.5) * k, (Math.random() - 0.5) * k);
+      cam.position.add(jolt);
+    } else this.shakeAmt = 0;
     this.composer.render();
+    if (jolt) cam.position.sub(jolt);
     this.drawBadges();
+    this.drawFloaters(now);
+  }
+
+  private drawFloaters(now: number) {
+    if (!this.floaters.length) return;
+    const ctx = this.ctx;
+    const v = new THREE.Vector3();
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    this.floaters = this.floaters.filter((f) => {
+      const p = (now - f.t0) / f.life;
+      if (p >= 1) return false;
+      v.copy(f.pos).project(this.camera);
+      if (v.z > 1) return true;
+      const x = ((v.x + 1) / 2) * innerWidth;
+      const y = ((1 - v.y) / 2) * innerHeight - 18 - p * 42;
+      const pop = p < 0.15 ? 0.6 + (p / 0.15) * 0.5 : 1.1 - Math.min(0.1, (p - 0.15) * 0.4);
+      ctx.globalAlpha = p < 0.7 ? 1 : 1 - (p - 0.7) / 0.3;
+      ctx.font = `700 ${Math.round(f.size * pop)}px "IBM Plex Sans", system-ui, sans-serif`;
+      ctx.lineWidth = 4;
+      ctx.strokeStyle = 'rgba(10,14,10,0.85)';
+      ctx.strokeText(f.text, x, y);
+      ctx.fillStyle = f.color;
+      ctx.fillText(f.text, x, y);
+      ctx.globalAlpha = 1;
+      return true;
+    });
   }
 
   private drawBadges() {

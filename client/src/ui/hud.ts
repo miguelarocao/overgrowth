@@ -1,4 +1,8 @@
+import { EMOTES } from '../../../shared/config';
+import type { Award } from '../../../shared/awards';
+import type { Weather } from '../../../shared/protocol';
 import { TEAM_BY_KEY, teamColor } from '../../../shared/teams';
+import { sfx } from '../audio';
 import type { ClientGame } from '../game';
 import type { View3D } from '../render/view3d';
 import { el, esc } from './dom';
@@ -9,12 +13,25 @@ export interface HudActions {
   leave(): void;
   backToLobby(): void;
   replay(id: string): void;
+  emote?(e: number): void;
+}
+
+const WIN_TITLES = ['You bloomed', 'Total overgrowth', 'Concrete never stood a chance', 'Garden party'];
+const LOSE_TITLES = ['Composted', 'Pruned', 'Back to seed', 'Wilted'];
+const pickOf = <T,>(a: T[]) => a[Math.floor(Math.random() * a.length)];
+
+function compass(cx: number, cy: number, w: number, h: number) {
+  const dx = cx / w - 0.5, dy = cy / h - 0.5;
+  const ns = dy < -0.15 ? 'north' : dy > 0.15 ? 'south' : '';
+  const ew = dx < -0.15 ? 'west' : dx > 0.15 ? 'east' : '';
+  return ns && ew ? `${ns}-${ew}` : ns || ew || 'middle';
 }
 
 export class Hud {
   readonly root: HTMLElement;
   private q = <T extends HTMLElement>(s: string) => this.root.querySelector<T>(s)!;
   private overShown = false;
+  private emotes = new Map<number, { e: number; until: number }>();
 
   constructor(view: View3D, private act: HudActions, label: string, replay = false) {
     this.root = el(`
@@ -24,6 +41,7 @@ export class Hud {
           <h1>Overgrowth</h1>
           <p><span id="turn">TURN 0</span> · ${esc(label)} <span class="status-pill" id="status" hidden></span></p>
         </div>
+        <div class="weather" id="weather" hidden aria-live="polite"></div>
         <section class="panel board" aria-label="Players"><table><thead><tr><th>PLAYER</th><th>STEMS</th><th>LAND</th></tr></thead><tbody id="rows"></tbody></table></section>
       </header>
       <div class="bottom">
@@ -34,7 +52,11 @@ export class Hud {
           <div class="line"><span>Selected stack</span><b id="sel">None</b></div>
           <div class="keys">Click a tile · <kbd>←↑→↓</kbd>/<kbd>WASD</kbd> move · <kbd>Z</kbd> half · <kbd>E</kbd> undo · <kbd>Q</kbd> clear · <kbd>H</kbd> home · <kbd>C</kbd> camera · right-drag pans</div>
         </section>`}
+        <div class="panel emotes" aria-label="Emotes" ${replay ? 'hidden' : ''}>
+          ${EMOTES.map((e, k) => `<button class="emote" data-e="${k}" title="${e.label} (${k + 1})" aria-label="Emote: ${e.label}">${e.emoji}<kbd>${k + 1}</kbd></button>`).join('')}
+        </div>
         <div class="panel controls">
+          <label class="switch"><input type="checkbox" id="sound"><span>Sound <kbd>M</kbd></span></label>
           <label class="switch"><input type="checkbox" id="tilt"><span>Tilt-shift</span></label>
           <label class="slider"><span>Blur</span><input type="range" id="blur" min="0" max="1" step="0.01" aria-label="Tilt-shift strength"></label>
           <label class="switch"><input type="checkbox" id="top"><span>Top-down <kbd>C</kbd></span></label>
@@ -56,6 +78,10 @@ export class Hud {
     blur.addEventListener('input', () => view.update({ blur: Number(blur.value) }));
     top.addEventListener('change', () => { view.update({ topDown: top.checked }); sync(); });
     this.syncControls = sync;
+    const sound = this.q<HTMLInputElement>('#sound');
+    sound.checked = !sfx.muted;
+    sound.addEventListener('change', () => sfx.setMuted(!sound.checked));
+    this.root.querySelectorAll<HTMLButtonElement>('[data-e]').forEach((b) => b.addEventListener('click', () => act.emote?.(Number(b.dataset.e))));
     this.root.querySelector('#surrender')?.addEventListener('click', () => {
       if (confirm('Surrender? Your land turns neutral and your mother plant becomes water.')) act.surrender();
     });
@@ -68,6 +94,33 @@ export class Hud {
     return this.root.querySelector<HTMLElement>(`#${id}`);
   }
 
+  syncSound() {
+    this.q<HTMLInputElement>('#sound').checked = !sfx.muted;
+  }
+
+  /** Big centred text for moments that matter (combos, eliminations). */
+  callout(text: string, sub = '', color = '#FFFFFF') {
+    this.root.querySelector('.callout')?.remove();
+    const c = el(`<div class="callout" role="status"><div class="big" style="color:${color}">${esc(text)}</div>${sub ? `<div class="sub">${sub}</div>` : ''}</div>`);
+    this.root.appendChild(c);
+    setTimeout(() => c.remove(), 2200);
+  }
+
+  showEmote(player: number | null, e: number) {
+    if (player === null) return;
+    this.emotes.set(player, { e, until: performance.now() + 3500 });
+  }
+
+  setWeather(w: Weather, g: ClientGame) {
+    const box = this.q('#weather');
+    const sh = w.now ?? w.next;
+    box.hidden = !sh;
+    if (!sh) return;
+    const where = compass(sh.x + sh.size / 2, sh.y + sh.size / 2, g.width, g.height);
+    if (w.now) box.innerHTML = `<b>☔ Spring shower</b> over the ${where}: land under the cloud grows +1 a turn · ${Math.ceil((sh.end - g.tick) / 2)} turns left`;
+    else box.innerHTML = `<b>☁️ Clouds gathering</b> over the ${where} · rain in ${Math.ceil((sh.start - g.tick) / 2)} turns`;
+  }
+
   setStatus(s: string) {
     const pill = this.q('#status');
     pill.hidden = s === 'open';
@@ -78,11 +131,17 @@ export class Hud {
   update(g: ClientGame) {
     this.q('#turn').textContent = `TURN ${Math.floor(g.tick / 2)}`;
     const rows = [...g.players].sort((a, b) => Number(b.alive) - Number(a.alive) || b.land - a.land || b.stems - a.stems);
-    this.q('#rows').innerHTML = rows.map((p) => `
+    const now = performance.now();
+    this.q('#rows').innerHTML = rows.map((p, rank) => {
+      const em = this.emotes.get(p.id);
+      const bubble = em && em.until > now ? `<span class="bubble" title="${esc(EMOTES[em.e].label)}">${EMOTES[em.e].emoji}<small>${esc(EMOTES[em.e].label)}</small></span>` : '';
+      const crown = rank === 0 && p.alive && g.tick > 60 ? '<span class="crown" title="Biggest garden">👑</span>' : '';
+      return `
       <tr class="${p.id === g.you ? 'me' : ''} ${p.alive ? '' : 'dead'}">
-        <td><span class="who">${glyph(p.team, 16)}<span style="color:${teamColor(p.team)}">${esc(p.name)}</span>${!p.connected ? '<span class="dc" title="Disconnected">●</span>' : ''}</span></td>
+        <td><span class="who">${glyph(p.team, 16)}<span style="color:${teamColor(p.team)}">${esc(p.name)}</span>${crown}${!p.connected ? '<span class="dc" title="Disconnected">●</span>' : ''}${bubble}</span></td>
         <td>${p.stems}</td><td>${p.land}</td>
-      </tr>`).join('');
+      </tr>`;
+    }).join('');
     const queue = this.root.querySelector('#queue');
     if (!queue) return;
     if (g.over) this.root.querySelector('#surrender')?.setAttribute('hidden', '');
@@ -104,7 +163,7 @@ export class Hud {
     this.q('#sel').textContent = t ? (t.owner === g.you ? `${t.stems} stems` : 'path end') : 'None';
   }
 
-  gameOver(g: ClientGame, winner: number | null, replayId: string | null, canGoLobby: boolean) {
+  gameOver(g: ClientGame, winner: number | null, replayId: string | null, canGoLobby: boolean, awards: Award[] = []) {
     if (this.overShown) return;
     this.overShown = true;
     const w = g.players.find((p) => p.id === winner);
@@ -112,8 +171,12 @@ export class Hud {
     const box = el(`
       <div class="overlay"><section class="panel card" role="dialog" aria-label="Game over">
         <div class="eyebrow">Game over · turn ${Math.floor(g.tick / 2)}</div>
-        <h2 class="title">${youWon ? 'You bloomed' : w ? `${esc(w.name)} wins` : 'Draw'}</h2>
-        ${w ? `<p class="lede" style="display:flex;gap:8px;align-items:center">${glyph(w.team, 22)} ${esc(TEAM_BY_KEY[w.team]?.name ?? '')} took the city with ${w.land} ${w.land === 1 ? 'tile' : 'tiles'}.</p>` : ''}
+        <h2 class="title">${youWon ? pickOf(WIN_TITLES) : g.you !== null && w ? pickOf(LOSE_TITLES) : w ? `${esc(w.name)} wins` : 'Draw'}</h2>
+        ${w ? `<p class="lede" style="display:flex;gap:8px;align-items:center">${glyph(w.team, 22)} ${youWon ? `Your ${esc(TEAM_BY_KEY[w.team]?.name.toLowerCase() ?? 'garden')}` : esc(w.name)} took the city with ${w.land} ${w.land === 1 ? 'tile' : 'tiles'}.</p>` : ''}
+        ${awards.length ? `<ul class="awards">${awards.map((a) => {
+          const p = g.players.find((x) => x.id === a.player);
+          return `<li><span class="icon">${a.icon}</span><span><b>${esc(a.title)}</b><span class="who">${p ? glyph(p.team, 14) : ''} ${esc(p?.name ?? '?')}</span><small>${esc(a.detail)}</small></span></li>`;
+        }).join('')}</ul>` : ''}
         <div class="row">
           ${replayId ? '<button class="btn" id="watch">Watch replay</button>' : ''}
           <button class="btn" id="look">Look at the board</button>

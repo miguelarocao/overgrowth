@@ -31,7 +31,7 @@ function getRoom(code: string): RoomEntry {
   const room = new Room(code, {
     now: () => Date.now(),
     random: () => Math.random(),
-    startTicking: () => loop.begin(),
+    startTicking: (ms) => loop.begin(ms),
     stopTicking: () => loop.stop(),
     saveReplay: (r: Replay) => {
       try {

@@ -39,8 +39,28 @@ Put it behind HTTPS if it's reachable from outside your network (the client swit
 | C | Toggle top-down camera (no blur) |
 | H | Jump the camera back to your selection or mother plant |
 | Drag / right-drag / scroll | Orbit / pan / zoom |
+| 1–6 | Emotes (🌱 gg · 🌸 bloom! · 🐝 bzzz · 💧 thirsty · 🥀 oof · 👀 I see you) |
+| M | Mute / unmute |
 
 Arrow keys follow the screen: if you orbit the camera 90°, "up" still means up on your screen.
+
+## What makes it fun
+
+- **Spring showers** (host can turn them off): every ~70 turns a rain cloud drifts over a patch
+  of the city. Clouds gather 10 turns ahead with a forecast banner, then for 15 turns every
+  owned tile under the cloud grows +1 per turn. That pulls everyone to the same place to fight.
+- **Pace**: Relaxed (500 ms ticks, the spec default), Brisk (350 ms) or Frantic (250 ms) for lunch-break games.
+- **Sound**, all synthesized: captures pluck notes on a pentatonic scale that climbs as your
+  streak grows, water splashes, bounced attacks thud, uprooting plays a fanfare, getting
+  uprooted plays a sad trombone. Rain when it rains, faint birdsong otherwise.
+- **Juice**: streak callouts ("Spreading!" → "Rampant!" → "Unstoppable overgrowth!"),
+  floating text ("bonk!" when an attack bounces, "💧 +1 / turn" when you take water),
+  screen shake for uproots (skipped with reduced motion), petal confetti when you win.
+- **Banter**: emotes appear as speech bubbles in the player list, for everyone, including
+  eliminated players and spectators. Bots emote too. Uproots get pun-filled announcements.
+- **End-of-game awards** computed from the replay: Rampant Grower, Uprooter, Biggest Bouquet,
+  Hydrant Hog, Marathon Vine, Thorny Optimist and Houseplant ("only 12 moves. Very zen.").
+- **Secrets.** There are easter eggs. Spoilers in [EASTER_EGGS.md](EASTER_EGGS.md).
 
 ## Layout
 
@@ -92,6 +112,9 @@ reference/    overgrowth-3d.html
   under 2 stems), it and its path continuation are dropped and the next valid step runs that tick.
   A step that executes but fails (attack too small) uses up the tick and drops its path continuation.
 - **Growth order:** moves first, then growth. On tick multiples of 50, a mother gets both +1s.
+- **Spring showers** default to on; the host can switch them off for classic rules. The schedule is
+  derived from the seed (deterministic, replayable), but the seed is never sent to clients,
+  since it would reveal the map. The server sends the current and upcoming shower instead.
 - **Map fairness:** each mother gets a "home" water at exactly the same path distance (5–7), and every
   other water is farther from all mothers than that. Maps failing a check retry with a derived seed.
 - **Tabs and reconnects:** a tab keeps its seat token in sessionStorage (survives reloads); a new tab
@@ -112,8 +135,8 @@ npm run sim -- 300 # headless bot-vs-bot games: crashes, unfinished games, lengt
 2. Local prototype — done as **offline mode** in the 3D client (same room code as the server) rather than a separate 2D canvas.
 3. Multiplayer — done: rooms by link, lobby, teams, host start, bots, spectators, reconnect, 60 s grace.
 4. 3D renderer — done: ported kit, tilt-shift + strength, top-down camera, counts after blur, queue vines, smog with last-seen tint, sprouts, grow-in and petal bursts.
-5. Polish — end screen and replays done. **No sounds yet.**
-6. Extras — teams 5–8 are in (Poppy, Daisy, Cherry blossom, Bluebell) and need a playtest for distinctness. No rule variants yet.
+5. Polish — end screen, awards, replays, synthesized sound, emotes and juice done.
+6. Extras — teams 5–8 are in (Poppy, Daisy, Cherry blossom, Bluebell) and need a playtest for distinctness. Rule variants: spring showers and pace.
 
 Known gaps: bots are simple (fine for filling seats; games with 5–8 bots run long), frame rate
 has not been measured on real laptop GPUs, and no Cloudflare Durable Objects adapter

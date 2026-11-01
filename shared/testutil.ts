@@ -29,6 +29,7 @@ export function makeState(rows: string[], players: number, stems: Record<number,
     tiles,
     players: Array.from({ length: players }, (_, id) => ({ id, team: 't' + id, alive: true })),
     buildings: [],
-    fountain: -1
+    fountain: -1,
+    rules: { showers: false }
   };
 }

@@ -3,10 +3,12 @@
 // runs on the server and in the browser for offline play. Clocks, timers and
 // randomness are injected through RoomHooks; the engine itself stays pure.
 import { Bot } from '../bots/bot';
-import { DISCONNECT_GRACE_MS, MAX_PLAYERS, MIN_PLAYERS, TICK_MS } from '../shared/config';
+import { DISCONNECT_GRACE_MS, EMOTES, MAX_PLAYERS, MIN_PLAYERS, PACES, type Pace } from '../shared/config';
+import { computeAwards, type Award } from '../shared/awards';
+import { forecastAt, showerAt } from '../shared/weather';
 import { playerStats } from '../shared/engine';
 import { generateMap } from '../shared/mapgen';
-import { diffView, kindCode, type ClientMsg, type LobbyPlayer, type PlayerInfo, type ServerMsg } from '../shared/protocol';
+import { diffView, kindCode, type ClientMsg, type LobbyPlayer, type PlayerInfo, type RoomOptions, type ServerMsg } from '../shared/protocol';
 import type { Replay } from '../shared/replay';
 import { GameSession, isWellFormedMove, type TickReport } from '../shared/session';
 import { TEAMS, TEAM_BY_KEY } from '../shared/teams';
@@ -20,7 +22,7 @@ export interface Conn {
 export interface RoomHooks {
   now(): number;
   random(): number;
-  startTicking(): void;
+  startTicking(intervalMs: number): void;
   stopTicking(): void;
   /** Persist a finished game's replay; returns its id (or null if not stored). */
   saveReplay?(replay: Replay): string | null;
@@ -62,6 +64,10 @@ export class Room {
   winner: PlayerId | null = null;
   replayId: string | null = null;
   lastReplay: Replay | null = null;
+  awards: Award[] = [];
+  options: RoomOptions = { showers: true, pace: 'relaxed' };
+  tickMs: number = PACES.relaxed;
+  private lastEmote = new WeakMap<Conn, number>();
   lastActive: number;
   private nextSeat = 1;
 
@@ -126,7 +132,7 @@ export class Room {
     else {
       this.sendStarted(conn, seat?.pid ?? null);
       this.sendTickTo(conn, seat ?? null, null);
-      if (this.phase === 'over') conn.send({ t: 'gameOver', winner: this.winner, replayId: this.replayId });
+      if (this.phase === 'over') conn.send({ t: 'gameOver', winner: this.winner, replayId: this.replayId, awards: this.awards });
     }
   }
 
@@ -181,6 +187,22 @@ export class Room {
           this.broadcastLobby();
         }
         break;
+      case 'setOptions':
+        if (isHost && this.phase === 'lobby') {
+          if (typeof msg.showers === 'boolean') this.options.showers = msg.showers;
+          if (typeof msg.pace === 'string' && msg.pace in PACES) this.options.pace = msg.pace as Pace;
+          this.broadcastLobby();
+        }
+        break;
+      case 'emote': {
+        const now = this.hooks.now();
+        if (!Number.isInteger(msg.e) || msg.e < 0 || msg.e >= EMOTES.length) break;
+        if (now - (this.lastEmote.get(conn) ?? -1e9) < 1200) break;
+        this.lastEmote.set(conn, now);
+        const who = seat ?? null;
+        this.broadcast({ t: 'emote', name: who?.name ?? 'Spectator', team: who?.team ?? '', player: who?.pid ?? null, e: msg.e });
+        break;
+      }
       case 'start':
         if (isHost && this.phase === 'lobby' && this.seats.length >= MIN_PLAYERS) this.startGame();
         break;
@@ -228,8 +250,9 @@ export class Room {
 
   private broadcastLobby() {
     const players = this.lobbyPlayers();
-    for (const s of this.seats) s.conn?.send({ t: 'lobby', code: this.code, players, host: this.host, you: s.seat });
-    for (const sp of this.spectators) sp.conn.send({ t: 'lobby', code: this.code, players, host: this.host, you: null });
+    const options = { ...this.options };
+    for (const s of this.seats) s.conn?.send({ t: 'lobby', code: this.code, players, host: this.host, you: s.seat, options });
+    for (const sp of this.spectators) sp.conn.send({ t: 'lobby', code: this.code, players, host: this.host, you: null, options });
   }
 
   private toLobby() {
@@ -252,7 +275,9 @@ export class Room {
 
   private startGame() {
     const seed = Math.floor(this.hooks.random() * 2 ** 31);
-    const state = generateMap(seed, this.seats.length);
+    const state = generateMap(seed, this.seats.length, { showers: this.options.showers });
+    this.tickMs = PACES[this.options.pace];
+    this.awards = [];
     this.seats.forEach((s, i) => {
       s.pid = i;
       state.players[i].team = s.team;
@@ -268,7 +293,7 @@ export class Room {
     for (const s of this.seats) if (s.conn) this.sendStarted(s.conn, s.pid);
     for (const sp of this.spectators) this.sendStarted(sp.conn, null);
     this.broadcastTick(null);
-    this.hooks.startTicking();
+    this.hooks.startTicking(this.tickMs);
   }
 
   private playerInfos(): PlayerInfo[] {
@@ -287,7 +312,7 @@ export class Room {
     const s = this.session!.state;
     conn.send({
       t: 'started', width: s.width, height: s.height, terrain: this.session!.initial.tiles.map((t) => kindCode(t.kind)),
-      buildings: s.buildings, fountain: s.fountain, you, players: this.playerInfos(), tickMs: TICK_MS, tick: s.tick
+      buildings: s.buildings, fountain: s.fountain, you, players: this.playerInfos(), tickMs: this.tickMs, tick: s.tick, rules: s.rules
     });
   }
 
@@ -304,7 +329,8 @@ export class Room {
       ack: seat?.ack ?? 0,
       executed: pid !== null ? rep?.executed.get(pid) ?? null : null,
       dropped: pid !== null ? rep?.dropped.get(pid) ?? [] : [],
-      full: view.full
+      full: view.full,
+      weather: { now: showerAt(session.state, session.state.tick), next: forecastAt(session.state, session.state.tick) }
     });
   }
 
@@ -335,6 +361,13 @@ export class Room {
     this.broadcastTick(rep);
     for (const e of rep.eliminations) this.broadcast({ t: 'eliminated', player: e.player, by: e.by });
     for (const p of rep.surrendered) this.broadcast({ t: 'eliminated', player: p, by: null });
+    // Bots have feelings too.
+    for (const e of rep.eliminations) {
+      const victim = this.seats.find((s) => s.pid === e.player);
+      const winner = this.seats.find((s) => s.pid === e.by);
+      if (victim?.isBot) this.broadcast({ t: 'emote', name: victim.name, team: victim.team, player: victim.pid, e: 4 });
+      else if (winner?.isBot) this.broadcast({ t: 'emote', name: winner.name, team: winner.team, player: winner.pid, e: 1 });
+    }
   }
 
   private finish(rep: TickReport) {
@@ -343,13 +376,19 @@ export class Room {
     this.winner = rep.winner;
     const session = this.session!;
     const id = `${this.code}-${Math.floor(this.hooks.now()).toString(36)}`;
-    const replay = session.toReplay(id, this.seats.map((s) => ({ name: s.name, team: s.team })), rep.winner);
+    const replay = session.toReplay(id, this.seats.map((s) => ({ name: s.name, team: s.team })), rep.winner, this.tickMs);
     this.lastReplay = replay;
+    try {
+      this.awards = computeAwards(replay);
+    } catch (err) {
+      console.error('awards failed', err);
+      this.awards = [];
+    }
     this.replayId = this.hooks.saveReplay?.(replay) ?? null;
     this.broadcastTick(rep); // unfogged final board
     for (const e of rep.eliminations) this.broadcast({ t: 'eliminated', player: e.player, by: e.by });
     for (const p of rep.surrendered) this.broadcast({ t: 'eliminated', player: p, by: null });
-    this.broadcast({ t: 'gameOver', winner: this.winner, replayId: this.replayId });
+    this.broadcast({ t: 'gameOver', winner: this.winner, replayId: this.replayId, awards: this.awards });
   }
 
   /** Run about once a second: disconnect grace periods and host hand-over. */
@@ -388,8 +427,9 @@ export class TickLoop {
 
   constructor(private interval: number, private fn: () => void, private now: () => number = () => Date.now()) {}
 
-  begin() {
+  begin(interval = this.interval) {
     this.stop();
+    this.interval = interval;
     this.start = this.now();
     this.n = 0;
     this.schedule();

@@ -108,7 +108,7 @@ export class LocalConnection implements Connection {
     this.room = new Room('offline', {
       now: () => Date.now(),
       random: () => Math.random(),
-      startTicking: () => this.loop.begin(),
+      startTicking: (ms) => this.loop.begin(ms),
       stopTicking: () => this.loop.stop(),
       saveReplay: (r) => {
         try {

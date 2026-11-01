@@ -1,5 +1,6 @@
-import { MAX_PLAYERS } from '../../../shared/config';
-import type { LobbyPlayer } from '../../../shared/protocol';
+import { MAX_PLAYERS, PACES, type Pace } from '../../../shared/config';
+import { sfx } from '../audio';
+import type { LobbyPlayer, RoomOptions } from '../../../shared/protocol';
 import { TEAMS, TEAM_BY_KEY } from '../../../shared/teams';
 import { el, esc, savedName } from './dom';
 import { glyph } from './glyphs';
@@ -39,6 +40,15 @@ export function homeScreen(go: (path: string) => void): HTMLElement {
       </div>
     </section>
   </div>`);
+  // Poke the title a few times and it starts sprouting.
+  const title = root.querySelector<HTMLElement>('#home-title')!;
+  let pokes = 0;
+  title.addEventListener('click', () => {
+    pokes++;
+    sfx.pluck(pokes);
+    if (pokes >= 3 && pokes <= 12) title.insertAdjacentHTML('beforeend', `<span class="sprout">${['🌱', '🌿', '🌸', '🌼', '🍃'][pokes % 5]}</span>`);
+    if (pokes === 12) title.insertAdjacentHTML('afterend', '<p class="note">Okay, okay. It\'s overgrown now. Happy?</p>');
+  });
   const name = root.querySelector<HTMLInputElement>('#name')!;
   name.value = savedName.get();
   name.addEventListener('input', () => savedName.set(name.value.trim()));
@@ -58,7 +68,9 @@ export interface LobbyActions {
   leave: () => void;
 }
 
-export function lobbyScreen(msg: { code: string; players: LobbyPlayer[]; host: number | null; you: number | null }, offline: boolean, act: LobbyActions): HTMLElement {
+const PACE_LABEL: Record<Pace, string> = { relaxed: 'Relaxed', brisk: 'Brisk', frantic: 'Frantic' };
+
+export function lobbyScreen(msg: { code: string; players: LobbyPlayer[]; host: number | null; you: number | null; options: RoomOptions }, offline: boolean, act: LobbyActions): HTMLElement {
   const me = msg.players.find((p) => p.seat === msg.you);
   const isHost = msg.you !== null && msg.you === msg.host;
   const link = `${location.origin}/r/${msg.code}`;
@@ -88,6 +100,18 @@ export function lobbyScreen(msg: { code: string; players: LobbyPlayer[]; host: n
               ${isHost && p.bot ? `<button class="btn small" data-remove="${p.seat}" aria-label="Remove ${esc(p.name)}">Remove</button>` : ''}
             </li>`).join('')}
         </ul></div>
+      <div class="field"><span class="eyebrow">Garden rules ${isHost ? '' : '· set by the host'}</span>
+        <div class="options">
+          <span class="seg" role="group" aria-label="Spring showers">
+            <button data-showers="1" aria-pressed="${msg.options.showers}" ${isHost ? '' : 'disabled'}>☔ Showers on</button>
+            <button data-showers="0" aria-pressed="${!msg.options.showers}" ${isHost ? '' : 'disabled'}>Off</button>
+          </span>
+          <span class="seg" role="group" aria-label="Pace">
+            ${(Object.keys(PACES) as Pace[]).map((p) => `<button data-pace="${p}" aria-pressed="${msg.options.pace === p}" ${isHost ? '' : 'disabled'}>${PACE_LABEL[p]}</button>`).join('')}
+          </span>
+        </div>
+        <span class="note">${msg.options.showers ? 'A rain cloud drifts over part of the city now and then. Land under it grows every turn: worth fighting over.' : 'Classic rules.'} ${msg.options.pace === 'relaxed' ? '2 ticks a second.' : msg.options.pace === 'brisk' ? 'About 3 ticks a second.' : '4 ticks a second. Hold on to your leaves.'}</span>
+      </div>
       ${me ? `
       <label class="field"><span class="eyebrow">Your name</span>
         <input class="input" id="rename" maxlength="20" value="${esc(me.name)}"></label>
@@ -120,6 +144,8 @@ export function lobbyScreen(msg: { code: string; players: LobbyPlayer[]; host: n
     savedName.set(rename.value.trim());
     act.send({ t: 'rename', name: rename.value });
   });
+  root.querySelectorAll<HTMLButtonElement>('[data-showers]').forEach((b) => b.addEventListener('click', () => act.send({ t: 'setOptions', showers: b.dataset.showers === '1' })));
+  root.querySelectorAll<HTMLButtonElement>('[data-pace]').forEach((b) => b.addEventListener('click', () => act.send({ t: 'setOptions', pace: b.dataset.pace })));
   root.querySelector('#bot')?.addEventListener('click', () => act.send({ t: 'addBot' }));
   root.querySelector('#fill')?.addEventListener('click', () => {
     for (let k = msg.players.length; k < (msg.players.length < 4 ? 4 : MAX_PLAYERS); k++) act.send({ t: 'addBot' });

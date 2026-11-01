@@ -9,3 +9,5 @@ export * from './view';
 export * from './session';
 export * from './replay';
 export * from './protocol';
+export * from './weather';
+export * from './awards';

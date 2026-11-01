@@ -1,6 +1,7 @@
 import { CORE_GROWTH_TICKS, LAND_GROWTH_TICKS } from './config';
 import { neighbor } from './grid';
 import type { GameState, Move, MoveOutcome, PlayerId, Tile } from './types';
+import { inShower, showerAt } from './weather';
 
 export interface Elimination {
   player: PlayerId;
@@ -97,12 +98,14 @@ function applyMove(state: GameState, player: PlayerId, move: Move, elims: Elimin
 function grow(state: GameState) {
   const core = state.tick % CORE_GROWTH_TICKS === 0;
   const land = state.tick % LAND_GROWTH_TICKS === 0;
+  const rain = core ? showerAt(state, state.tick) : null;
   if (!core && !land) return;
-  for (const t of state.tiles) {
-    if (t.owner === null || !state.players[t.owner].alive) continue;
+  state.tiles.forEach((t, i) => {
+    if (t.owner === null || !state.players[t.owner].alive) return;
     if (core && (t.isMother || t.kind === 'water')) t.stems += 1;
+    else if (rain && inShower(rain, i, state.width)) t.stems += 1;
     if (land) t.stems += 1;
-  }
+  });
 }
 
 /**

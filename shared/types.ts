@@ -32,6 +32,14 @@ export interface PlayerState {
   alive: boolean;
 }
 
+/** Optional rule variants, chosen by the host in the lobby. */
+export interface Rules {
+  /** Spring showers: a rain cloud periodically settles over part of the city; owned tiles under it grow every turn. */
+  showers: boolean;
+}
+
+export const DEFAULT_RULES: Rules = { showers: true };
+
 export interface GameState {
   seed: number;
   tick: number;
@@ -42,6 +50,7 @@ export interface GameState {
   buildings: Building[];
   /** Index of the plaza fountain tile. */
   fountain: number;
+  rules: Rules;
 }
 
 export interface Move {

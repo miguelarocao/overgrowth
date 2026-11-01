@@ -6,6 +6,7 @@ import { diffView, kindCode, type PlayerInfo, type ServerMsg } from '../../share
 import { applyReplayTick, replayInitial, type Replay } from '../../shared/replay';
 import type { GameState, ViewTile } from '../../shared/types';
 import { viewFor } from '../../shared/view';
+import { forecastAt, showerAt } from '../../shared/weather';
 
 export class ReplayPlayer {
   private checkpoints = new Map<number, GameState>();
@@ -36,7 +37,7 @@ export class ReplayPlayer {
     this.sent = null;
     return {
       t: 'started', width: s0.width, height: s0.height, terrain: s0.tiles.map((t) => kindCode(t.kind)),
-      buildings: s0.buildings, fountain: s0.fountain, you: null, players: this.infos(s0), tickMs: TICK_MS, tick: 0
+      buildings: s0.buildings, fountain: s0.fountain, you: null, players: this.infos(s0), tickMs: this.replay.tickMs ?? TICK_MS, tick: 0, rules: s0.rules
     };
   }
 
@@ -55,6 +56,7 @@ export class ReplayPlayer {
     const view = viewFor(this.state, null);
     const changedTiles = diffView(this.sent, view.tiles);
     this.sent = view.tiles;
-    return { t: 'tick', tick: this.state.tick, changedTiles, players: this.infos(this.state), queue: null, ack: 0, executed: null, dropped: [], full: true };
+    return { t: 'tick', tick: this.state.tick, changedTiles, players: this.infos(this.state), queue: null, ack: 0, executed: null, dropped: [], full: true,
+      weather: { now: showerAt(this.state, this.state.tick), next: forecastAt(this.state, this.state.tick) } };
   }
 }

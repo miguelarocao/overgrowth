@@ -4,6 +4,8 @@ import type { Replay } from '../../shared/replay';
 import { teamColor } from '../../shared/teams';
 import type { Dir } from '../../shared/types';
 import { ClientGame } from './game';
+import { sfx } from './audio';
+import { Fun, greetConsole } from './fun';
 import { LOCAL_REPLAY_KEY, LocalConnection, WsConnection, type Connection } from './net';
 import { View3D } from './render/view3d';
 import { Vines } from './render/vines';
@@ -30,6 +32,7 @@ function go(path: string) {
   // Handy for debugging in devtools (and the browser tests): only your own client state.
 (window as any).og = { get game() { return current?.game ?? null; }, get view() { return view; } };
 
+greetConsole();
 route();
 }
 window.addEventListener('popstate', () => route());
@@ -37,6 +40,7 @@ window.addEventListener('popstate', () => route());
 /** Whatever is on screen now (a live game, an offline game or a replay). */
 interface Screen {
   game: ClientGame | null;
+  fun?: Fun | null;
   world: World | null;
   vines: Vines | null;
   refresh(): void;
@@ -63,7 +67,13 @@ function route() {
     else current = gameScreen(room ? room[1].toLowerCase() : null);
     return;
   }
-  if (path !== '/') history.replaceState(null, '', '/');
+  if (path !== '/') {
+    // Unknown path: it's overgrown.
+    app.replaceChildren(el(`<div class="center"><section class="panel card"><h1 class="title" style="font-size:52px">404 🌿</h1>
+      <p class="lede">This path is completely overgrown. Nobody has walked it in years.</p><button class="btn primary" id="home">Take the main road</button></section></div>`));
+    app.querySelector('#home')!.addEventListener('click', () => go('/'));
+    return;
+  }
   app.replaceChildren(homeScreen(go));
 }
 
@@ -105,12 +115,14 @@ function gameScreen(code: string | null): Screen {
   let extra: Badge[] = [];
   let lastLobby: Extract<ServerMsg, { t: 'lobby' }> | null = null;
   let isHost = false;
+  let fun: Fun | null = null;
   const send = (m: any) => conn.send(m);
 
   const screen: Screen = {
     get game() { return game; },
     get world() { return world; },
     get vines() { return vines; },
+    get fun() { return fun; },
     refresh() {
       if (!game || !world || !hud) return;
       vines!.set(game.alive ? game.queue : [], teamColor(game.teamOf(game.you)));
@@ -137,6 +149,8 @@ function gameScreen(code: string | null): Screen {
       view!.setWorld(null);
       game = world = vines = null;
       hud = null;
+      fun = null;
+      sfx.setRain(false);
     }
     app.replaceChildren(lobbyScreen(m, offline, { send, leave: () => go('/') }));
   };
@@ -155,9 +169,11 @@ function gameScreen(code: string | null): Screen {
           surrender: () => send({ t: 'surrender' }),
           leave: () => go('/'),
           backToLobby: () => send({ t: 'backToLobby' }),
-          replay: (id) => go(`/replay/${id}`)
+          replay: (id) => go(`/replay/${id}`),
+          emote: (e) => send({ t: 'emote', e })
         }, offline ? 'OFFLINE' : `ROOM ${code!.toUpperCase()}`);
         hud.setStatus(status);
+        fun = new Fun(game, world!, view!, hud, send);
         app.replaceChildren(hud.root);
         if (firstStart && m.you !== null) toast(`${glyph(game.teamOf(m.you) ?? '', 16)} Your mother plant is the tall tree. Click it, then use the arrow keys.`, 6000);
         break;
@@ -165,9 +181,11 @@ function gameScreen(code: string | null): Screen {
       case 'tick': {
         if (!game || !world) return;
         const firstTick = game.tick === 0 && game.selection === null && m.changedTiles.length > 50;
+        const before = fun?.snapshot(m);
         const ch = game.applyTick(m);
         world.update(ch.changed, now);
         if (ch.dropped.length) vines!.flash(ch.dropped, now);
+        if (fun && before) fun.onTick(before, ch, m);
         if (firstTick && game.you !== null) {
           const mother = game.tiles.findIndex((t) => t.isMother && t.owner === game!.you);
           if (mother >= 0) {
@@ -180,18 +198,20 @@ function gameScreen(code: string | null): Screen {
       }
       case 'eliminated': {
         if (!game) return;
-        const p = game.players.find((x) => x.id === m.player);
-        const by = m.by !== null ? game.players.find((x) => x.id === m.by) : null;
-        if (p) toast(`${glyph(p.team, 16)} ${esc(p.name)} ${by ? `was uprooted by ${esc(by.name)}` : 'surrendered'}`);
+        fun?.onEliminated(m);
         if (m.player === game.you) game.select(null);
         break;
       }
+      case 'emote':
+        if (fun) fun.onEmote(m);
+        else toast(`${glyph(m.team, 16)} <b>${esc(m.name)}</b>`, 1500);
+        break;
       case 'gameOver':
         if (!game || !hud) return;
         game.over = true;
         game.winner = m.winner;
         hud.update(game);
-        setTimeout(() => hud?.gameOver(game!, m.winner, m.replayId, isHost || offline), 700);
+        fun?.onGameOver(m, isHost || offline);
         break;
       case 'error':
         toast(esc(m.message));
@@ -304,6 +324,12 @@ window.addEventListener('keydown', (e) => {
   if (target && (target.tagName === 'INPUT' || target.tagName === 'SELECT' || target.tagName === 'TEXTAREA' || target.isContentEditable)) return;
   if (e.ctrlKey || e.metaKey || e.altKey) return;
   const key = e.key.length === 1 ? e.key.toLowerCase() : e.key;
+  if (key === 'm') {
+    sfx.setMuted(!sfx.muted);
+    toast(sfx.muted ? '🔇 Sound off' : '🔊 Sound on', 1200);
+    document.querySelector<HTMLInputElement>('#sound') && (document.querySelector<HTMLInputElement>('#sound')!.checked = !sfx.muted);
+    return;
+  }
   if (key === 'c' && view?.world) {
     view.update({ topDown: !view.settings.topDown });
     document.querySelector<HTMLInputElement>('#top') && (document.querySelector<HTMLInputElement>('#top')!.checked = view.settings.topDown);
@@ -314,18 +340,23 @@ window.addEventListener('keydown', (e) => {
   const game = current?.game;
   if (!game || !current?.vines) return;
   const dir = KEY_DIRS[key];
+  let queued = false;
   if (dir) {
     e.preventDefault();
-    game.queueDir(view!.gridDir(dir));
-  } else if (key === 'z') game.toggleHalf();
-  else if (key === 'e') game.undo();
+    queued = game.queueDir(view!.gridDir(dir));
+    if (queued) sfx.tick(game.queue.length);
+  } else if (key === 'z') {
+    game.toggleHalf();
+    sfx.tick(game.halfNext ? 6 : 0);
+  } else if (key === 'e') game.undo();
   else if (key === 'q') game.clear();
+  else if (/^[1-6]$/.test(key)) current.fun?.emote(Number(key) - 1);
   else if (key === 'Escape') game.select(null);
   else if (key === 'h' && current.world) {
     const home = game.selection ?? game.tiles.findIndex((t) => t.isMother && t.owner === game.you);
     if (home >= 0) view!.focus(current.world.tilePos(home));
   }
-  else return;
+  current.fun?.onKey(e.key.length === 1 ? e.key.toLowerCase() : e.key, queued);
   current.refresh();
 });
 
@@ -338,7 +369,10 @@ canvas.addEventListener('pointerup', (e) => {
   const game = current?.game;
   if (!game || !view || !current?.vines) return;
   const tile = view.pick(e.clientX, e.clientY);
+  if (current.fun?.onClick(e.clientX, e.clientY, tile)) return;
+  const had = game.selection;
   game.select(tile >= 0 ? tile : null);
+  if (game.selection !== null && game.selection !== had) sfx.select();
   current.refresh();
 });
 canvas.addEventListener('pointermove', (e) => {
@@ -358,4 +392,5 @@ canvas.addEventListener('contextmenu', (e) => e.preventDefault());
 // Handy for debugging in devtools (and the browser tests): only your own client state.
 (window as any).og = { get game() { return current?.game ?? null; }, get view() { return view; } };
 
+greetConsole();
 route();
