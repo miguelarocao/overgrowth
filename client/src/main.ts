@@ -14,6 +14,7 @@ import { ReplayPlayer } from './replay';
 import { el, esc, savedName, toast } from './ui/dom';
 import { glyph } from './ui/glyphs';
 import { Hud } from './ui/hud';
+import { Tutorial, tutorialDone } from './ui/tutorial';
 import { homeScreen, lobbyScreen } from './ui/screens';
 
 const app = document.getElementById('app')!;
@@ -116,6 +117,15 @@ function gameScreen(code: string | null): Screen {
   let lastLobby: Extract<ServerMsg, { t: 'lobby' }> | null = null;
   let isHost = false;
   let fun: Fun | null = null;
+  let tutorial: Tutorial | null = null;
+  const wantTutorial = offline && new URLSearchParams(location.search).has('tutorial');
+  let autoStarted = false;
+  const startTutorial = () => {
+    if (!game || !world || !hud || !game.alive) return;
+    tutorial?.close();
+    tutorial = new Tutorial(game, world, view!, () => (tutorial = null));
+    hud.root.appendChild(tutorial.root);
+  };
   const send = (m: any) => conn.send(m);
 
   const screen: Screen = {
@@ -130,6 +140,7 @@ function gameScreen(code: string | null): Screen {
       world.selection.visible = sel !== null;
       if (sel !== null) world.selection.position.set(world.tilePos(sel).x, 0.13, world.tilePos(sel).z);
       extra = game.alive ? decorations(game, world) : [];
+      tutorial?.check();
       hud.update(game);
     },
     dispose() {
@@ -139,7 +150,7 @@ function gameScreen(code: string | null): Screen {
     }
   };
 
-  view!.extraBadges = () => extra;
+  view!.extraBadges = () => (tutorial ? [...extra, ...tutorial.badges()] : extra);
   view!.onFrame = (now) => vines?.frame(now, view!.reduced);
 
   const showLobby = (m: Extract<ServerMsg, { t: 'lobby' }>) => {
@@ -150,9 +161,15 @@ function gameScreen(code: string | null): Screen {
       game = world = vines = null;
       hud = null;
       fun = null;
+      tutorial = null;
       sfx.setRain(false);
     }
     app.replaceChildren(lobbyScreen(m, offline, { send, leave: () => go('/') }));
+    // The tutorial skips the lobby: you and one bot, straight in.
+    if (wantTutorial && !autoStarted && m.you !== null && m.you === m.host && m.players.length >= 2) {
+      autoStarted = true;
+      send({ t: 'start' });
+    }
   };
 
   const onMessage = (m: ServerMsg) => {
@@ -170,12 +187,13 @@ function gameScreen(code: string | null): Screen {
           leave: () => go('/'),
           backToLobby: () => send({ t: 'backToLobby' }),
           replay: (id) => go(`/replay/${id}`),
-          emote: (e) => send({ t: 'emote', e })
+          emote: (e) => send({ t: 'emote', e }),
+          tutorial: () => startTutorial()
         }, offline ? 'OFFLINE' : `ROOM ${code!.toUpperCase()}`);
         hud.setStatus(status);
         fun = new Fun(game, world!, view!, hud, send);
         app.replaceChildren(hud.root);
-        if (firstStart && m.you !== null) toast(`${glyph(game.teamOf(m.you) ?? '', 16)} Your mother plant is the tall tree. Click it, then use the arrow keys.`, 6000);
+        if (firstStart && m.you !== null && tutorialDone() && !wantTutorial) toast(`${glyph(game.teamOf(m.you) ?? '', 16)} Your mother plant is the tall tree. Click it, then use the arrow keys.`, 6000);
         break;
       }
       case 'tick': {
@@ -192,6 +210,7 @@ function gameScreen(code: string | null): Screen {
             game.select(mother);
             view!.focus(world.tilePos(mother), true);
           }
+          if (wantTutorial || !tutorialDone()) startTutorial();
         }
         screen.refresh();
         break;
@@ -316,14 +335,33 @@ function replayScreen(id: string): Screen {
 // ---------- input ----------
 
 const KEY_DIRS: Record<string, Dir> = {
-  ArrowUp: 'up', ArrowDown: 'down', ArrowLeft: 'left', ArrowRight: 'right', w: 'up', s: 'down', a: 'left', d: 'right'
+  ArrowUp: 'up', ArrowDown: 'down', ArrowLeft: 'left', ArrowRight: 'right'
 };
+const PAN_KEYS = new Set(['w', 'a', 's', 'd']);
+
+window.addEventListener('keyup', (e) => view?.held.delete(e.key.toLowerCase()));
+window.addEventListener('blur', () => view?.held.clear());
 
 window.addEventListener('keydown', (e) => {
   const target = e.target as HTMLElement;
-  if (target && (target.tagName === 'INPUT' || target.tagName === 'SELECT' || target.tagName === 'TEXTAREA' || target.isContentEditable)) return;
+  if (target && (target.tagName === 'SELECT' || target.tagName === 'TEXTAREA' || target.isContentEditable)) return;
+  if (target instanceof HTMLInputElement) {
+    // Text fields keep their keys; sliders and switches hand the keyboard back to the game.
+    if (!['checkbox', 'range'].includes(target.type)) return;
+    target.blur();
+  }
   if (e.ctrlKey || e.metaKey || e.altKey) return;
   const key = e.key.length === 1 ? e.key.toLowerCase() : e.key;
+  if (PAN_KEYS.has(key) && view?.world) {
+    view.held.add(key);
+    current?.fun?.onKey(key, false);
+    return;
+  }
+  if (key === 'r' && view?.world) {
+    view.quarterTurn(e.shiftKey ? -1 : 1);
+    current?.fun?.onKey(key, false);
+    return;
+  }
   if (key === 'm') {
     sfx.setMuted(!sfx.muted);
     toast(sfx.muted ? '🔇 Sound off' : '🔊 Sound on', 1200);
@@ -333,8 +371,6 @@ window.addEventListener('keydown', (e) => {
   if (key === 'c' && view?.world) {
     view.update({ topDown: !view.settings.topDown });
     document.querySelector<HTMLInputElement>('#top') && (document.querySelector<HTMLInputElement>('#top')!.checked = view.settings.topDown);
-    const blur = document.querySelector<HTMLInputElement>('#blur');
-    if (blur) blur.disabled = !view.settings.tilt || view.settings.topDown;
     return;
   }
   const game = current?.game;

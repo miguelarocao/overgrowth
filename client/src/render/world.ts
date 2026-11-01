@@ -8,6 +8,7 @@ import type { ClientGame } from '../game';
 import { ChunkPool, type Inst, type Kind, KINDS, Recipe, rngFrom, StaticBatch, V, pick } from './kit';
 import * as R from './recipes';
 import { Critters } from './critters';
+import { Fog } from './fog';
 import type { Weather } from '../../../shared/protocol';
 
 export interface Badge {
@@ -19,12 +20,20 @@ export interface Badge {
 }
 
 const SOIL = new THREE.Color('#3B3026');
-const HAZE = new THREE.Color('#615B50');
 const SMOG_GREY = new THREE.Color('#6A6D6E');
 const ZERO = new THREE.Matrix4().makeScale(0, 0, 0);
 
+/** Bigger stacks grow bigger plants: the city should look properly overgrown. */
 function tier(stems: number) {
-  return stems <= 1 ? 0.7 : stems <= 4 ? 0.8 : stems <= 14 ? 0.9 : stems <= 49 ? 1.0 : 1.1;
+  return stems <= 1 ? 0.72 : stems <= 4 ? 0.82 : stems <= 14 ? 0.94 : stems <= 49 ? 1.06 : stems <= 149 ? 1.18 : 1.3;
+}
+
+interface BuildingIvy {
+  anchors: { p: THREE.Vector3; n: THREE.Vector3; roof: boolean }[];
+  neighbors: number[];
+  center: THREE.Vector3;
+  sig: string;
+  team: string | null;
 }
 
 function maxCounts(make: (team: string, seed: number) => Recipe, teams = TEAMS.map((t) => t.key)): Partial<Record<Kind, number>> {
@@ -117,11 +126,20 @@ export class World {
   private ground: THREE.InstancedMesh;
   /** One pool per team, sized exactly for that team's bush, so no slots are wasted. */
   private bushPools = new Map<string, ChunkPool>();
+  private oasisPools = new Map<string, ChunkPool>();
+  private ivyPools = new Map<string, ChunkPool>();
+  private ivy: BuildingIvy[] = [];
+  private tileBuildings = new Map<number, number[]>();
+  private jets: THREE.InstancedMesh;
+  private jetTiles: number[] = [];
+  /** Called when a building becomes fully overgrown (surrounded by one player). */
+  onOvergrown: (at: THREE.Vector3, player: number) => void = () => {};
   private bushTeam: (string | null)[];
+  private oasisTeam = new Map<number, string>();
   private trees: ChunkPool;
   private hydrants: ChunkPool;
   private sprouts: ChunkPool;
-  private smog: THREE.InstancedMesh;
+  private fog: Fog;
   private petals = new Petals();
   private sig: { bush: string[]; tree: string[]; ground: string[]; sprout: boolean[]; smog: string[]; vis: boolean[]; owner: (number | null)[]; kind: string[] };
   private buildingHidden: boolean[];
@@ -181,12 +199,8 @@ export class World {
     this.sprouts = new ChunkPool({ stem: 2, ball: 4 }, N, { shadows: false });
     this.scene.add(this.trees.group, this.hydrants.group, this.sprouts.group, this.petals.mesh);
 
-    this.smog = new THREE.InstancedMesh(KINDS.box.geo, new THREE.MeshBasicMaterial({ color: '#fff', transparent: true, opacity: 0.5, depthWrite: false }), N);
-    this.smog.frustumCulled = false;
-    this.smog.renderOrder = 2;
-    for (let i = 0; i < N; i++) this.smog.setMatrixAt(i, ZERO);
-    this.smog.setColorAt(0, HAZE);
-    this.scene.add(this.smog);
+    this.fog = new Fog(N, (i, y) => this.tilePos(i, y));
+    this.scene.add(this.fog.group);
 
     // Weather: a cloud of grey puffs, rain streaks and a wet sheen on the ground.
     const puff = new THREE.MeshStandardMaterial({ color: '#B8BEC2', roughness: 1, flatShading: true, transparent: true, opacity: 0 });
@@ -204,6 +218,14 @@ export class World {
     this.wet = new THREE.Mesh(new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI / 2), new THREE.MeshStandardMaterial({ color: '#7FA7C0', transparent: true, opacity: 0, roughness: 0.1, metalness: 0.3, depthWrite: false }));
     this.wet.visible = false;
     this.scene.add(this.cloud, this.rain, this.wet, this.rainEdge);
+
+    // Animated hydrant spray: a jet arcing out of the side and a geyser out of the top.
+    for (let i = 0; i < N; i++) if (game.tiles[i].kind === 'water' && i !== game.fountain) this.jetTiles.push(i);
+    this.jets = new THREE.InstancedMesh(KINDS.ball.geo, new THREE.MeshStandardMaterial({ color: '#fff', roughness: 0.2, metalness: 0.1, emissive: '#3A5560', emissiveIntensity: 0.5 }), (this.jetTiles.length + 8) * 26); // +8: captured mother plants become water
+    this.jets.frustumCulled = false;
+    this.jets.setColorAt(0, new THREE.Color('#CFE3EA'));
+    this.scene.add(this.jets);
+    this.buildIvy();
 
     this.critters = new Critters(this.W, this.H, (i, y) => this.tilePos(i, y), (x, z) => this.roofAt(x, z),
       (i) => game.tiles[i].owner === null && game.tiles[i].kind !== 'building' && game.tiles[i].kind !== 'water' && i !== game.fountain, game.buildings);
@@ -302,6 +324,99 @@ export class World {
     });
     if (g.fountain >= 0) add('fountain', R.fountain().transform(0, this.tilePos(g.fountain)));
     return new StaticBatch(groups);
+  }
+
+  private pool(map: Map<string, ChunkPool>, team: string, sizes: () => Partial<Record<Kind, number>>, chunks: number): ChunkPool {
+    let p = map.get(team);
+    if (!p) {
+      p = new ChunkPool(sizes(), chunks);
+      map.set(team, p);
+      this.scene.add(p.group);
+    }
+    return p;
+  }
+
+  private oasisPool(team: string) {
+    return this.pool(this.oasisPools, team, () => maxCounts((t, s) => R.oasis(t, rngFrom(s)), [team]), Math.max(4, this.jetTiles.length + 9));
+  }
+
+  private ivyPool(team: string) {
+    return this.pool(this.ivyPools, team, () => {
+      const out: Partial<Record<Kind, number>> = {};
+      // The building with the most anchors needs the most slots; a few spare for randomness.
+      const biggest = this.ivy.reduce((a, b) => (b.anchors.length > a.anchors.length ? b : a), this.ivy[0]);
+      for (let s = 0; s < 4; s++) {
+        const rc = R.ivy(team, biggest.anchors, 1, rngFrom(s * 7 + 3));
+        for (const k of Object.keys(KINDS) as Kind[]) out[k] = Math.max(out[k] ?? 0, Math.ceil(rc.count(k) * 1.15));
+      }
+      return out;
+    }, this.ivy.length);
+  }
+
+  /** Anchor points on every building's walls and roof, for ivy when it gets surrounded. */
+  private buildIvy() {
+    const g = this.game;
+    g.buildings.forEach((b, k) => {
+      const cx = b.x + (b.w - 1) / 2 - (this.W - 1) / 2, cz = b.y + (b.h - 1) / 2 - (this.H - 1) / 2;
+      const hw = (b.w - 0.14) / 2, hd = (b.h - 0.14) / 2;
+      const small = b.style === 'car';
+      const hx = small ? 0.2 : hw, hz = small ? 0.38 : hd;
+      const height = Math.max(0.3, Math.min(this.roofAt(cx, cz), this.roofAt(cx + hx * 0.6, cz + hz * 0.6), this.roofAt(cx - hx * 0.6, cz - hz * 0.6)) - 0.05);
+      const r = rngFrom(k * 131 + 7);
+      const faces = [
+        { n: V(0, 0, 1), len: hx * 2, at: (u: number) => V(cx + u * hx, 0, cz + hz) },
+        { n: V(0, 0, -1), len: hx * 2, at: (u: number) => V(cx + u * hx, 0, cz - hz) },
+        { n: V(1, 0, 0), len: hz * 2, at: (u: number) => V(cx + hx, 0, cz + u * hz) },
+        { n: V(-1, 0, 0), len: hz * 2, at: (u: number) => V(cx - hx, 0, cz + u * hz) }
+      ];
+      const total = faces.reduce((a, f) => a + f.len, 0);
+      const count = Math.round(Math.min(150, 20 + total * 11 * Math.min(1.6, height)));
+      const anchors: BuildingIvy['anchors'] = [];
+      for (let j = 0; j < count; j++) {
+        let pickLen = r() * total, face = faces[0];
+        for (const f of faces) {
+          if (pickLen <= f.len) { face = f; break; }
+          pickLen -= f.len;
+        }
+        const y = 0.12 + Math.pow((j + r()) / count, 1.1) * (height - 0.12);
+        anchors.push({ p: face.at(r() * 2 - 1).setY(y), n: face.n, roof: false });
+      }
+      for (const [ux, uz] of [[-0.5, -0.5], [0.5, 0.4], [0.4, -0.45], [-0.45, 0.5]]) anchors.push({ p: V(cx + ux * hx, height + 0.04, cz + uz * hz), n: V(0, 1, 0), roof: true });
+      const neighbors = new Set<number>();
+      for (let y = b.y; y < b.y + b.h; y++) for (let x = b.x; x < b.x + b.w; x++) {
+        for (const nb of neighbors4(y * this.W + x, this.W, this.H)) if (g.tiles[nb].kind !== 'building') neighbors.add(nb);
+      }
+      for (const nb of neighbors) {
+        if (!this.tileBuildings.has(nb)) this.tileBuildings.set(nb, []);
+        this.tileBuildings.get(nb)!.push(k);
+      }
+      this.ivy.push({ anchors, neighbors: [...neighbors], center: V(cx, height + 0.4, cz), sig: '', team: null });
+    });
+  }
+
+  /** Ivy creeps up a building as one player surrounds it; fully surrounded, it blooms and grows a roof garden. */
+  private updateIvy(k: number, animate: boolean) {
+    const b = this.ivy[k];
+    if (!b.neighbors.length) return;
+    const g = this.game;
+    const counts = new Map<number, number>();
+    for (const i of b.neighbors) {
+      const t = g.tiles[i];
+      if (t.visible && t.owner !== null) counts.set(t.owner, (counts.get(t.owner) ?? 0) + 1);
+    }
+    let owner: number | null = null, best = 0;
+    for (const [o, c] of counts) if (c > best) { best = c; owner = o; }
+    const frac = best / b.neighbors.length;
+    const q = frac >= 1 ? 1 : frac >= 0.25 ? Math.floor(frac * 8) / 8 : 0;
+    const team = q && owner !== null ? g.teamOf(owner) ?? 'glory' : null;
+    const sig = team ? `${team}|${q}` : '';
+    if (sig === b.sig) return;
+    const wasFull = b.sig.endsWith('|1');
+    if (b.team && b.team !== team) this.ivyPool(b.team).remove(k);
+    if (team) this.ivyPool(team).set(k, R.ivy(team, b.anchors, q, rngFrom(k * 91 + 5)).list, V(0, 0, 0));
+    b.team = team;
+    b.sig = sig;
+    if (animate && q === 1 && !wasFull && owner !== null) this.onOvergrown(b.center.clone(), owner);
   }
 
   private bushPool(team: string): ChunkPool {
@@ -404,6 +519,46 @@ export class World {
     this.rain.instanceMatrix.needsUpdate = true;
   }
 
+  private jetFrame(now: number) {
+    const m = new THREE.Matrix4();
+    const q = new THREE.Quaternion();
+    const PER = 26;
+    let n = 0;
+    const c = new THREE.Color();
+    for (const i of this.jetTiles) {
+      if (n + PER > this.jets.instanceMatrix.count) break;
+      const t = this.game.tiles[i];
+      const owned = t.visible && t.owner !== null;
+      const base = this.tilePos(i).add(R.NOZZLE);
+      const top = this.tilePos(i).add(R.HYDRANT_AT).setY(R.SLAB_TOP + 0.4);
+      const power = owned ? 1.45 : 1;
+      const tint = owned ? c.set('#CFE3EA').lerp(new THREE.Color(teamColor(this.game.teamOf(t.owner))), 0.3) : c.set('#CFE3EA');
+      for (let j = 0; j < 16; j++) {
+        // Side jet: droplets travel along an arc into the puddle.
+        const s = (j / 16 + now * 0.0009 + i * 0.13) % 1;
+        const p = base.clone().add(V(-0.5 * s * power, 0.26 * Math.sin(Math.PI * s) * power - s * 0.18, 0.18 * s));
+        const r = 0.03 * (1 - s * 0.5);
+        m.compose(p, q, V(r, r, r));
+        this.jets.setMatrixAt(n, m);
+        this.jets.setColorAt(n++, tint);
+      }
+      for (let j = 0; j < 10; j++) {
+        // Geyser out of the top: up, then spilling down.
+        const s = (j / 10 + now * 0.0012 + i * 0.37) % 1;
+        const a = j * 2.4;
+        const h = 0.55 * power * (1 - (2 * s - 1) ** 2);
+        const p = top.clone().add(V(Math.cos(a) * s * 0.12, h, Math.sin(a) * s * 0.12));
+        const r = 0.026 * (1 - s * 0.4);
+        m.compose(p, q, V(r, r, r));
+        this.jets.setMatrixAt(n, m);
+        this.jets.setColorAt(n++, tint);
+      }
+    }
+    this.jets.count = n;
+    this.jets.instanceMatrix.needsUpdate = true;
+    if (this.jets.instanceColor) this.jets.instanceColor.needsUpdate = true;
+  }
+
   private setGround(i: number, team: string | null, soil: boolean) {
     const p = this.tilePos(i);
     const m = new THREE.Matrix4();
@@ -415,7 +570,7 @@ export class World {
     if (team && soil) {
       m.compose(V(p.x, 0.05, p.z), new THREE.Quaternion(), V(0.86, 0.1, 0.86));
       this.ground.setMatrixAt(i * 2 + 1, m);
-      this.ground.setColorAt(i * 2 + 1, SOIL);
+      this.ground.setColorAt(i * 2 + 1, SOIL.clone().lerp(new THREE.Color(teamColor(team!)), 0.28));
     } else this.ground.setMatrixAt(i * 2 + 1, ZERO);
     this.ground.instanceMatrix.addUpdateRange(i * 32, 32);
     this.ground.instanceMatrix.needsUpdate = true;
@@ -440,8 +595,8 @@ export class World {
       for (const n of neighbors4(i, this.W, this.H)) dirty.add(n);
     }
     const ownedVisible = (i: number) => g.tiles[i].visible && g.tiles[i].owner !== null;
-    let smogDirty = false;
     const buildingsToCheck = new Set<number>();
+    const ivyCheck = new Set<number>();
     for (const i of dirty) {
       const t = g.tiles[i];
       const team = t.visible && t.owner !== null ? g.teamOf(t.owner) ?? 'glory' : null;
@@ -464,8 +619,18 @@ export class World {
         this.sig.tree[i] = treeSig;
       }
 
-      // Bush (or a small one beside owned water).
-      const sc = team && !t.isMother ? (water ? 0.5 : tier(t.stems)) : 0;
+      // Captured water flourishes into an oasis.
+      const oasisTeam = team && water ? team : null;
+      const prevOasis = this.oasisTeam.get(i) ?? null;
+      if (oasisTeam !== prevOasis) {
+        if (prevOasis) this.oasisPool(prevOasis).remove(i);
+        if (oasisTeam) this.oasisPool(oasisTeam).set(i, R.oasis(oasisTeam, rngFrom(i * 23 + 1), i === g.fountain).list, this.tilePos(i));
+        if (oasisTeam) this.oasisTeam.set(i, oasisTeam);
+        else this.oasisTeam.delete(i);
+      }
+
+      // Bush.
+      const sc = team && !t.isMother && !water ? tier(t.stems) : 0;
       const bushSig = sc ? `${team}|${sc}` : '';
       if (bushSig !== this.sig.bush[i]) {
         const prevTeam = this.bushTeam[i];
@@ -501,7 +666,10 @@ export class World {
       }
 
       // Hydrant/puddle on water tiles (terrain, always visible). The fountain is static.
-      if (water && i !== g.fountain && !this.hydrants.has(i)) this.hydrants.set(i, R.hydrant(rngFrom(i)).list, this.tilePos(i));
+      if (water && i !== g.fountain && !this.hydrants.has(i)) {
+        this.hydrants.set(i, R.hydrant(rngFrom(i)).list, this.tilePos(i));
+        if (!this.jetTiles.includes(i)) this.jetTiles.push(i);
+      }
 
       // Sprouts on neutral tiles touching visible growth.
       const sprout = t.visible && t.owner === null && (t.kind === 'plain' || t.kind === 'street') && neighbors4(i, this.W, this.H).some(ownedVisible);
@@ -511,20 +679,15 @@ export class World {
         this.sig.sprout[i] = sprout;
       }
 
-      // Smog.
-      const hidden = !t.visible && t.kind !== 'building';
+      for (const k of this.tileBuildings.get(i) ?? []) ivyCheck.add(k);
+
+      // Fog of war.
+      const hidden = !t.visible;
       const seen = g.lastSeen[i];
       const smogSig = hidden ? `h${seen ?? ''}` : '';
       if (smogSig !== this.sig.smog[i]) {
-        const p = this.tilePos(i);
-        if (hidden) {
-          this.smog.setMatrixAt(i, new THREE.Matrix4().compose(V(p.x, 0.19, p.z), new THREE.Quaternion(), V(1.0, 0.38, 1.0)));
-          const c = HAZE.clone();
-          if (seen !== null) c.lerp(new THREE.Color(teamColor(g.teamOf(seen))), 0.28);
-          this.smog.setColorAt(i, c);
-        } else this.smog.setMatrixAt(i, ZERO);
+        this.fog.set(i, hidden, hidden && seen !== null ? new THREE.Color(teamColor(g.teamOf(seen))) : null, !changed);
         this.sig.smog[i] = smogSig;
-        smogDirty = true;
       }
       if (t.kind === 'building' && wasVisible !== t.visible) {
         g.buildings.forEach((b, k) => {
@@ -537,10 +700,7 @@ export class World {
       this.sig.vis[i] = t.visible;
       this.sig.kind[i] = t.isMother ? 'mother' : t.kind;
     }
-    if (smogDirty) {
-      this.smog.instanceMatrix.needsUpdate = true;
-      this.smog.instanceColor!.needsUpdate = true;
-    }
+    for (const k of ivyCheck) this.updateIvy(k, !!changed);
     // Buildings outside vision stay visible but desaturated.
     const all = !changed;
     g.buildings.forEach((b, k) => {
@@ -582,6 +742,8 @@ export class World {
     }
     this.petals.frame(now, dt);
     this.critters.frame(now, dt);
+    this.fog.frame(dt);
+    this.jetFrame(now);
     this.weatherFrame(now, dt);
     // Disco garden (an easter egg): the lights dance.
     if (now < this.discoUntil) {
@@ -599,12 +761,13 @@ export class World {
 
   dispose() {
     this.city.dispose();
-    for (const p of this.bushPools.values()) p.dispose();
+    for (const p of [...this.bushPools.values(), ...this.oasisPools.values(), ...this.ivyPools.values()]) p.dispose();
+    this.jets.dispose();
     this.trees.dispose();
     this.hydrants.dispose();
     this.sprouts.dispose();
     this.ground.dispose();
-    this.smog.dispose();
+    this.fog.dispose();
     this.petals.mesh.dispose();
     for (const { tex } of this.billboardText.values()) tex.dispose();
     this.rain.dispose();

@@ -56,7 +56,7 @@ export const KINDS: Record<Kind, KindDef> = {
   leafLo: { geo: new THREE.IcosahedronGeometry(1, 0), rough: 0.95 },
   ball: { geo: new THREE.IcosahedronGeometry(1, 0), rough: 0.8 },
   disc: { geo: new THREE.CylinderGeometry(1, 0.55, 0.35, 7), rough: 0.75 },
-  bud: { geo: new THREE.SphereGeometry(1, 5, 4), rough: 0.85 },
+  bud: { geo: new THREE.OctahedronGeometry(1, 0), rough: 0.85 }, // stretched: lavender spikes, cattails
   stem: { geo: new THREE.CylinderGeometry(1, 1, 1, 5, 1, true), rough: 0.9 },
   box: { geo: new THREE.BoxGeometry(1, 1, 1), rough: 0.9 },
   cyl: { geo: new THREE.CylinderGeometry(1, 1, 1, 10), rough: 0.85 },
@@ -111,6 +111,14 @@ export class Recipe {
     for (const it of this.list) {
       it.pos.applyQuaternion(q).add(offset);
       it.quat.premultiply(q);
+    }
+    return this;
+  }
+  /** Scale every instance (positions and sizes) about the origin. */
+  scaled(f: number) {
+    for (const it of this.list) {
+      it.pos.multiplyScalar(f);
+      it.scale.multiplyScalar(f);
     }
     return this;
   }

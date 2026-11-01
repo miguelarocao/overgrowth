@@ -2,7 +2,7 @@
 
 Rival flowering plants take over an abandoned concrete city. A live multiplayer
 territory game for 2–8 people in the browser: claim land, grow your stems, and
-uproot every other mother plant. Shown as a tilt-shift miniature diorama.
+uproot every other mother plant. Shown as a miniature 3D diorama, with a top-down map mode.
 
 See [SPEC.md](SPEC.md) for the full design. The 3D look is ported from
 [reference/overgrowth-3d.html](reference/overgrowth-3d.html).
@@ -33,18 +33,33 @@ Put it behind HTTPS if it's reachable from outside your network (the client swit
 | Input | Action |
 |---|---|
 | Click a tile | Select it |
-| Arrow keys / WASD | Queue a step from the selection (the selection moves along, so presses draw a path) |
+| Arrow keys | Queue a step from the selection (the selection moves along, so presses draw a path) |
 | Z | Next step sends half instead of all but one |
 | E / Q | Undo last step / clear the queue |
-| C | Toggle top-down camera (no blur) |
+| WASD, or left-drag | Pan the camera |
+| Right-drag, or R / Shift+R | Rotate (R snaps a quarter turn) |
+| Scroll | Zoom |
+| C | Toggle the top-down map (team-coloured territory, hatched buildings; fully playable) |
 | H | Jump the camera back to your selection or mother plant |
-| Drag / right-drag / scroll | Orbit / pan / zoom |
+| ? / ⚙ Settings | Replay the tutorial / camera speeds, swap drag buttons, map colours |
 | 1–6 | Emotes (🌱 gg · 🌸 bloom! · 🐝 bzzz · 💧 thirsty · 🥀 oof · 👀 I see you) |
 | M | Mute / unmute |
 
 Arrow keys follow the screen: if you orbit the camera 90°, "up" still means up on your screen.
 
 ## What makes it fun
+
+- **A 2-minute tutorial** runs on your first game (and from the home page, or **?** in game).
+  Each step waits for you to actually do the thing.
+- **Fog of war** is a real fog bank: everything you can't see is buried in smog, and only tall
+  buildings poke out above it. Your growth rolls it back.
+- **Every team looks different**, not just in colour: morning glory grows vine arches, sunflowers
+  tall stalks, lavender spiky tufts, roses dense round shrubs, poppies cups on thin stems, daisies
+  a flat white carpet, cherry tiny blossom trees, bluebells weeping fountains of bells. Owned
+  soil is tinted with the team colour, and plants get bigger as stacks grow.
+- **Overgrowth**: captured hydrants flourish into ponds with lily pads, reeds and vines up the
+  hydrant. Ivy creeps up any building as one player surrounds it; fully surrounded, it's covered
+  in that team's blooms and grows a roof garden.
 
 - **Spring showers** (host can turn them off): every ~70 turns a rain cloud drifts over a patch
   of the city. Clouds gather 10 turns ahead with a forecast banner, then for 15 turns every
@@ -79,8 +94,9 @@ client/       Vite + TypeScript + three.js
   src/game.ts          client state, optimistic queue prediction, arrival estimates
   src/render/kit.ts    instancing toolkit (one InstancedMesh per part type, per-tile chunks)
   src/render/recipes.ts bushes, trees, buildings, props (ported from the reference)
-  src/render/world.ts  the diorama: city, growth, smog, sprouts, capture effects
-  src/render/view3d.ts renderer, tilt-shift, cameras, badge overlay
+  src/render/world.ts  the diorama: city, growth, hydrants, ivy, sprouts, capture effects
+  src/render/fog.ts    fog of war
+  src/render/view3d.ts renderer, cameras and controls, badge overlay, top-down map layer
 bots/         deterministic bot + headless simulator
 reference/    overgrowth-3d.html
 ```
@@ -97,9 +113,9 @@ reference/    overgrowth-3d.html
   number; the server echoes the highest one it applied (`ack`), and the client replays any newer
   local edits on top of the server's authoritative queue. This is the same idea as client-side
   prediction in action games, just for a move list.
-- **Sharp numbers over a blurry world.** Tilt-shift is a post-processing blur, so anything drawn in
-  the 3D scene gets blurred. Stem counts are drawn on a separate 2D canvas *after* the 3D frame,
-  so they stay crisp at any blur strength.
+- **Crisp numbers.** Stem counts are drawn on a separate 2D canvas over the 3D frame, so they
+  stay sharp at any zoom. (The original tilt-shift blur was removed after playtesting: it
+  doesn't suit a strategy game.)
 - **Instancing.** Every part type (leaves, blooms, stems, buds, windows…) is one `InstancedMesh`.
   Each tile owns a fixed chunk of instances in a per-team pool, so a capture rewrites only that
   tile's chunk. A late 8-player game is about 0.4M triangles in roughly 60 draw calls.
@@ -134,7 +150,7 @@ npm run sim -- 300 # headless bot-vs-bot games: crashes, unfinished games, lengt
 1. Engine — done, with tests.
 2. Local prototype — done as **offline mode** in the 3D client (same room code as the server) rather than a separate 2D canvas.
 3. Multiplayer — done: rooms by link, lobby, teams, host start, bots, spectators, reconnect, 60 s grace.
-4. 3D renderer — done: ported kit, tilt-shift + strength, top-down camera, counts after blur, queue vines, smog with last-seen tint, sprouts, grow-in and petal bursts.
+4. 3D renderer — done: ported kit, top-down map mode, crisp counts, queue vines, fog of war with last-seen tint, sprouts, grow-in and petal bursts. Tilt-shift was removed after playtesting.
 5. Polish — end screen, awards, replays, synthesized sound, emotes and juice done.
 6. Extras — teams 5–8 are in (Poppy, Daisy, Cherry blossom, Bluebell) and need a playtest for distinctness. Rule variants: spring showers and pace.
 

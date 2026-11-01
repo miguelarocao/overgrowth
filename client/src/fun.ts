@@ -72,6 +72,11 @@ export class Fun {
   private letters = '';
 
   constructor(private game: ClientGame, private world: World, private view: View3D, private hud: Hud, private send: (m: any) => void) {
+    world.onOvergrown = (at, player) => {
+      const mine = player === this.me;
+      this.view.float(at, mine ? '🌿 Overgrown!' : 'overgrown', mine ? '#B9E6A0' : teamColor(this.team(player)), mine ? 20 : 14, 1600);
+      if (mine) sfx.callout(1);
+    };
     const s = season();
     if (s === 'halloween') setTimeout(() => toast('🎃 Spooky season. Something is glowing on the rooftops.', 4500), 7000);
     if (s === 'winter') setTimeout(() => toast('✨ The city put its lights up. Even the abandoned bits.', 4500), 7000);

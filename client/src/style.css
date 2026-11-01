@@ -201,3 +201,19 @@ kbd {
 @media (prefers-reduced-motion: reduce) {
   .callout, .board .bubble, .awards li { animation: none; }
 }
+
+.settings { position: absolute; right: max(16px, env(safe-area-inset-right, 0px)); bottom: 76px; display: flex; flex-direction: column; gap: 2px; padding: 12px 14px; min-width: 300px; }
+.settings .slider { justify-content: space-between; min-height: 34px; }
+.settings .slider input { width: 140px; }
+.settings .switch { min-height: 34px; }
+
+.tutorial {
+  position: absolute; left: 50%; top: calc(84px + env(safe-area-inset-top, 0px)); transform: translateX(-50%);
+  width: min(460px, calc(100vw - 32px)); padding: 12px 16px; display: flex; flex-direction: column; gap: 8px;
+  background: var(--panel-solid); border-color: rgba(127, 196, 104, 0.5); box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
+  animation: bubble-in 0.3s;
+}
+.tutorial p { margin: 0; font-size: 14.5px; line-height: 1.5; }
+.tutorial .tut-head { display: flex; justify-content: space-between; align-items: center; }
+.tutorial .row { justify-content: flex-end; }
+@media (max-width: 1180px) { .tutorial { top: calc(150px + env(safe-area-inset-top, 0px)); } }

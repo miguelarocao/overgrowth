@@ -4,7 +4,7 @@ import type { Weather } from '../../../shared/protocol';
 import { TEAM_BY_KEY, teamColor } from '../../../shared/teams';
 import { sfx } from '../audio';
 import type { ClientGame } from '../game';
-import type { View3D } from '../render/view3d';
+import { DEFAULT_VIEW, type View3D } from '../render/view3d';
 import { el, esc } from './dom';
 import { glyph } from './glyphs';
 
@@ -14,6 +14,7 @@ export interface HudActions {
   backToLobby(): void;
   replay(id: string): void;
   emote?(e: number): void;
+  tutorial?(): void;
 }
 
 const WIN_TITLES = ['You bloomed', 'Total overgrowth', 'Concrete never stood a chance', 'Garden party'];
@@ -50,33 +51,55 @@ export class Hud {
           <div class="queue-head"><span class="eyebrow" id="q-title">Your queue</span><span class="readout" id="readout" aria-live="polite">Queue empty</span></div>
           <div class="line"><span>Next step</span><b id="mode">All but one</b></div>
           <div class="line"><span>Selected stack</span><b id="sel">None</b></div>
-          <div class="keys">Click a tile · <kbd>←↑→↓</kbd>/<kbd>WASD</kbd> move · <kbd>Z</kbd> half · <kbd>E</kbd> undo · <kbd>Q</kbd> clear · <kbd>H</kbd> home · <kbd>C</kbd> camera · right-drag pans</div>
+          <div class="keys">Click a tile · <kbd>←↑→↓</kbd> grow · <kbd>Z</kbd> half · <kbd>E</kbd> undo · <kbd>Q</kbd> clear<br><kbd>WASD</kbd>/drag pan · scroll zoom · right-drag or <kbd>R</kbd> rotate · <kbd>H</kbd> home · <kbd>C</kbd> top-down</div>
         </section>`}
         <div class="panel emotes" aria-label="Emotes" ${replay ? 'hidden' : ''}>
           ${EMOTES.map((e, k) => `<button class="emote" data-e="${k}" title="${e.label} (${k + 1})" aria-label="Emote: ${e.label}">${e.emoji}<kbd>${k + 1}</kbd></button>`).join('')}
         </div>
+        <section class="panel settings" id="settings" hidden aria-label="Camera settings">
+          <div class="eyebrow">Camera</div>
+          <label class="slider"><span>Rotate speed</span><input type="range" id="s-rot" min="0.05" max="1.2" step="0.05"></label>
+          <label class="slider"><span>Pan speed</span><input type="range" id="s-pan" min="0.3" max="3" step="0.1"></label>
+          <label class="slider"><span>Zoom speed</span><input type="range" id="s-zoom" min="0.3" max="3" step="0.1"></label>
+          <label class="switch"><input type="checkbox" id="s-drag"><span>Left-drag pans (off: left-drag rotates)</span></label>
+          <label class="switch"><input type="checkbox" id="s-map"><span>Map colours in top-down</span></label>
+          <button class="btn small" id="s-reset">Reset to defaults</button>
+        </section>
         <div class="panel controls">
           <label class="switch"><input type="checkbox" id="sound"><span>Sound <kbd>M</kbd></span></label>
-          <label class="switch"><input type="checkbox" id="tilt"><span>Tilt-shift</span></label>
-          <label class="slider"><span>Blur</span><input type="range" id="blur" min="0" max="1" step="0.01" aria-label="Tilt-shift strength"></label>
           <label class="switch"><input type="checkbox" id="top"><span>Top-down <kbd>C</kbd></span></label>
+          <button class="btn small" id="gear" aria-expanded="false" aria-controls="settings" title="Camera settings">⚙ Settings</button>
+          <button class="btn small" id="help" title="Tutorial">?</button>
           ${replay ? '<button class="btn small" id="leave">Exit replay</button>' : '<button class="btn small danger" id="surrender">Surrender</button>'}
         </div>
       </div>
     </div>`);
-    const tilt = this.q<HTMLInputElement>('#tilt');
-    const blur = this.q<HTMLInputElement>('#blur');
     const top = this.q<HTMLInputElement>('#top');
+    const rot = this.q<HTMLInputElement>('#s-rot'), pan = this.q<HTMLInputElement>('#s-pan'), zoom = this.q<HTMLInputElement>('#s-zoom');
+    const drag = this.q<HTMLInputElement>('#s-drag'), map = this.q<HTMLInputElement>('#s-map');
     const sync = () => {
-      tilt.checked = view.settings.tilt;
-      blur.value = String(view.settings.blur);
-      blur.disabled = !view.settings.tilt || view.settings.topDown;
-      top.checked = view.settings.topDown;
+      const s = view.settings;
+      top.checked = s.topDown;
+      rot.value = String(s.rotateSpeed);
+      pan.value = String(s.panSpeed);
+      zoom.value = String(s.zoomSpeed);
+      drag.checked = s.dragPans;
+      map.checked = s.mapLayer;
     };
     sync();
-    tilt.addEventListener('change', () => { view.update({ tilt: tilt.checked }); sync(); });
-    blur.addEventListener('input', () => view.update({ blur: Number(blur.value) }));
     top.addEventListener('change', () => { view.update({ topDown: top.checked }); sync(); });
+    rot.addEventListener('input', () => view.update({ rotateSpeed: Number(rot.value) }));
+    pan.addEventListener('input', () => view.update({ panSpeed: Number(pan.value) }));
+    zoom.addEventListener('input', () => view.update({ zoomSpeed: Number(zoom.value) }));
+    drag.addEventListener('change', () => view.update({ dragPans: drag.checked }));
+    map.addEventListener('change', () => view.update({ mapLayer: map.checked }));
+    this.q('#s-reset').addEventListener('click', () => { view.update({ ...DEFAULT_VIEW, topDown: view.settings.topDown }); sync(); });
+    const gear = this.q('#gear'), panel = this.q('#settings');
+    gear.addEventListener('click', () => {
+      panel.hidden = !panel.hidden;
+      gear.setAttribute('aria-expanded', String(!panel.hidden));
+    });
+    this.q('#help').addEventListener('click', () => act.tutorial?.());
     this.syncControls = sync;
     const sound = this.q<HTMLInputElement>('#sound');
     sound.checked = !sfx.muted;

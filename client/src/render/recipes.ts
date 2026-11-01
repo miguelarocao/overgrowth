@@ -53,48 +53,153 @@ function bloom(rc: Recipe, team: string, pos: THREE.Vector3, dir: THREE.Vector3,
   }
 }
 
-/** A bush of leaf clusters covered in the team's blooms. */
+/** Leaf clumps in a mound. Returns their centres so blooms can sit on them. */
+function mound(rc: Recipe, r: Rng, n: number, rad: [number, number], spread: number, colors: string[], squash = 1, lift = 0) {
+  const out: { p: THREE.Vector3; rad: number }[] = [];
+  for (let k = 0; k < n; k++) {
+    const rr = rad[0] + r() * (rad[1] - rad[0]);
+    const a = r() * Math.PI * 2, d = Math.sqrt(r()) * spread;
+    const p = V(Math.cos(a) * d, lift + rr * 0.7 * squash + r() * 0.06, Math.sin(a) * d);
+    rc.add('leafLo', p, randQuat(r), V(rr, rr * squash, rr), pick(r, colors));
+    out.push({ p, rad: rr });
+  }
+  return out;
+}
+
+/** A stem from a to b (a thin cylinder). */
+function stemBetween(rc: Recipe, a: THREE.Vector3, b: THREE.Vector3, thick: number, hex: string) {
+  const d = b.clone().sub(a);
+  rc.add('stem', a.clone().addScaledVector(d, 0.5), qFrom(d), V(thick, d.length(), thick), hex);
+}
+
+/**
+ * Each team's growth has its own silhouette, not just its own colour, so teams stay
+ * distinct at a glance (and for colourblind players):
+ * morning glory = vine arch, sunflower = tall stalks, lavender = spiky tuft,
+ * rose = dense round shrub, poppy = cups on thin stems, daisy = flat white carpet,
+ * cherry = tiny tree, bluebell = weeping fountain of bells.
+ */
 export function bush(team: string, r: Rng): Recipe {
   const rc = new Recipe();
-  const leaves: { p: THREE.Vector3; rad: number }[] = [];
-  const n = team === 'lav' ? 5 : team === 'sun' ? 7 : 9;
-  for (let k = 0; k < n; k++) {
-    const rad = team === 'lav' ? 0.1 + r() * 0.06 : 0.15 + r() * 0.11;
-    const a = r() * Math.PI * 2, d = r() * 0.2;
-    const p = V(Math.cos(a) * d, rad * 0.75 + r() * 0.12, Math.sin(a) * d);
-    rc.add('leafLo', p, null, rad, leafGreen(team, r));
-    leaves.push({ p, rad });
-  }
-  if (team === 'sun') {
-    for (let k = 0; k < 3; k++) {
-      const a = r() * Math.PI * 2, d = r() * 0.18;
-      const bx = Math.cos(a) * d, bz = Math.sin(a) * d;
-      const h = 0.5 + r() * 0.3;
-      rc.add('stem', V(bx, h / 2, bz), null, V(0.018, h, 0.018), '#4E8A3E');
-      const dir = V(0.35 + r() * 0.2, 1, 0.35 + r() * 0.2).normalize();
-      const top = V(bx, h, bz);
-      rc.add('disc', top, qFrom(dir), V(0.14, 0.07, 0.14), '#F2C230');
-      rc.add('disc', top.clone().addScaledVector(dir, 0.015), qFrom(dir), V(0.07, 0.09, 0.07), '#5A3A12');
-      rc.add('leafLo', V(bx + 0.05, h * 0.5, bz), null, V(0.07, 0.03, 0.05), '#57984A');
+  switch (team) {
+    case 'glory': {
+      mound(rc, r, 5, [0.11, 0.17], 0.18, GREENS, 0.8);
+      // A vine arch across the tile, covered in big blue trumpets.
+      const tilt = r() * Math.PI;
+      const pts: THREE.Vector3[] = [];
+      for (let k = 0; k <= 8; k++) {
+        const t = k / 8, a = Math.PI * t;
+        pts.push(V(Math.cos(a) * 0.32, Math.sin(a) * 0.5 + 0.02, 0).applyAxisAngle(UP, tilt));
+      }
+      for (let k = 0; k < 8; k++) {
+        stemBetween(rc, pts[k], pts[k + 1], 0.014, '#3F7F38');
+        rc.add('leafLo', pts[k].clone().add(V(0, 0.02, 0)), randQuat(r), V(0.07, 0.03, 0.06), pick(r, GREENS));
+        const dir = pts[k].clone().setY(0).normalize().add(V(0, 0.8, 0)).normalize();
+        bloom(rc, 'glory', pts[k].clone().add(V(0, 0.04, 0)), dir, r, 1.45);
+      }
+      for (let k = 0; k < 5; k++) bloom(rc, 'glory', V((r() - 0.5) * 0.4, 0.22 + r() * 0.06, (r() - 0.5) * 0.4), randDir(r, 0.4, 1), r, 1.3);
+      return rc;
     }
-    return rc;
-  }
-  if (team === 'lav') {
-    for (let k = 0; k < 14; k++) {
-      const a = r() * Math.PI * 2, d = r() * 0.22;
-      const base = V(Math.cos(a) * d, 0, Math.sin(a) * d);
-      const h = 0.28 + r() * 0.2;
-      const tilt = qFrom(V((r() - 0.5) * 0.3, 1, (r() - 0.5) * 0.3));
-      const up = UP.clone().applyQuaternion(tilt);
-      rc.add('stem', base.clone().addScaledVector(up, h / 2), tilt, V(0.009, h, 0.009), '#6E8B5E');
-      rc.add('bud', base.clone().addScaledVector(up, h + 0.03), tilt, V(0.03, 0.1, 0.03), pick(r, LAVS));
+    case 'sun': {
+      mound(rc, r, 3, [0.08, 0.12], 0.14, GREENS);
+      for (let k = 0; k < 4; k++) {
+        const a = (k / 4) * Math.PI * 2 + r() * 0.8, d = 0.08 + r() * 0.16;
+        const bx = Math.cos(a) * d, bz = Math.sin(a) * d;
+        const h = 0.7 + r() * 0.35;
+        rc.add('stem', V(bx, h / 2, bz), null, V(0.022, h, 0.022), '#4E8A3E');
+        for (const s of [0.35, 0.6]) rc.add('leafLo', V(bx + 0.06, h * s, bz), qFrom(V(1, 0.4, 0)), V(0.09, 0.025, 0.06), '#57984A');
+        const dir = V(Math.cos(a) * 0.5, 1, Math.sin(a) * 0.5).normalize();
+        const top = V(bx, h, bz);
+        rc.add('disc', top, qFrom(dir), V(0.19, 0.08, 0.19), '#F2C230');
+        rc.add('disc', top.clone().addScaledVector(dir, 0.02), qFrom(dir), V(0.095, 0.1, 0.095), '#5A3A12');
+      }
+      return rc;
     }
-    return rc;
+    case 'lav': {
+      mound(rc, r, 4, [0.07, 0.1], 0.14, ['#7A9A68', '#6E8B5E'], 0.6);
+      for (let k = 0; k < 18; k++) {
+        const a = r() * Math.PI * 2, d = Math.sqrt(r()) * 0.3;
+        const base = V(Math.cos(a) * d, 0, Math.sin(a) * d);
+        const h = 0.32 + r() * 0.3;
+        const tilt = qFrom(V(Math.cos(a) * d * 0.6, 1, Math.sin(a) * d * 0.6));
+        const up = UP.clone().applyQuaternion(tilt);
+        rc.add('stem', base.clone().addScaledVector(up, h / 2), tilt, V(0.009, h, 0.009), '#6E8B5E');
+        rc.add('bud', base.clone().addScaledVector(up, h + 0.05), tilt, V(0.035, 0.13, 0.035), pick(r, LAVS));
+      }
+      return rc;
+    }
+    case 'rose': {
+      const leaves = mound(rc, r, 11, [0.13, 0.19], 0.2, ['#2F5F2B', '#356B30', '#2A5426'], 1, 0.08);
+      for (let k = 0; k < 6; k++) {
+        const a = r() * Math.PI * 2;
+        stemBetween(rc, V(0, 0.15, 0), V(Math.cos(a) * 0.42, 0.25 + r() * 0.3, Math.sin(a) * 0.42), 0.012, '#6B2230');
+      }
+      for (let k = 0; k < 15; k++) {
+        const L = pick(r, leaves), dir = randDir(r, -0.1, 1);
+        bloom(rc, 'rose', L.p.clone().addScaledVector(dir, L.rad * 0.95), dir, r, 1.35);
+      }
+      return rc;
+    }
+    case 'poppy': {
+      mound(rc, r, 6, [0.06, 0.09], 0.28, ['#6B9B4A', '#5F8D41'], 0.5);
+      for (let k = 0; k < 8; k++) {
+        const a = r() * Math.PI * 2, d = 0.06 + Math.sqrt(r()) * 0.3;
+        const base = V(Math.cos(a) * d, 0, Math.sin(a) * d);
+        const h = 0.35 + r() * 0.35;
+        const mid = base.clone().add(V((r() - 0.5) * 0.12, h * 0.5, (r() - 0.5) * 0.12));
+        const top = base.clone().add(V((r() - 0.5) * 0.08, h, (r() - 0.5) * 0.08));
+        stemBetween(rc, base, mid, 0.008, '#5F8D41');
+        stemBetween(rc, mid, top, 0.008, '#5F8D41');
+        rc.add('disc', top, qFrom(V(0, 1, 0)), V(0.11, 0.17, 0.11), pick(r, ['#F07A2A', '#E8662A', '#F38A3A']));
+        rc.add('ball', top.clone().add(V(0, 0.035, 0)), null, 0.03, '#2A1A12');
+      }
+      return rc;
+    }
+    case 'daisy': {
+      mound(rc, r, 8, [0.12, 0.16], 0.3, ['#5FA34E', '#4A8C3F'], 0.45);
+      for (let k = 0; k < 22; k++) {
+        const a = r() * Math.PI * 2, d = Math.sqrt(r()) * 0.38;
+        const p = V(Math.cos(a) * d, 0.12 + r() * 0.06 + (0.38 - d) * 0.2, Math.sin(a) * d);
+        const dir = V(Math.cos(a) * d * 0.6, 1, Math.sin(a) * d * 0.6).normalize();
+        bloom(rc, 'daisy', p, dir, r, 1.25);
+      }
+      return rc;
+    }
+    case 'cherry': {
+      // A tiny cherry tree: trunk, two branches, a pink canopy and fallen petals.
+      rc.add('taper', V(0, 0.2, 0), null, V(0.045, 0.4, 0.045), BARK);
+      stemBetween(rc, V(0, 0.32, 0), V(0.16, 0.48, 0.05), 0.022, BARK);
+      stemBetween(rc, V(0, 0.34, 0), V(-0.14, 0.5, -0.06), 0.022, BARK);
+      for (let k = 0; k < 7; k++) {
+        const a = (k / 7) * Math.PI * 2 + r() * 0.5, d = 0.12 + r() * 0.12;
+        const c = V(Math.cos(a) * d, 0.5 + r() * 0.16, Math.sin(a) * d);
+        for (let j = 0; j < 4; j++) rc.add('ball', c.clone().add(randDir(r).multiplyScalar(0.06)), randQuat(r), 0.07 + r() * 0.03, pick(r, ['#F5A7C7', '#F8C0D6', '#EE93B8', '#FBD3E2']));
+      }
+      for (let k = 0; k < 6; k++) rc.add('disc', V((r() - 0.5) * 0.7, 0.01, (r() - 0.5) * 0.7), randQuat(r), V(0.03, 0.006, 0.03), '#F8C0D6');
+      return rc;
+    }
+    case 'bell': {
+      // A weeping fountain: arching stems that droop at the ends, bells hanging along them.
+      for (let k = 0; k < 5; k++) rc.add('leafLo', V((r() - 0.5) * 0.15, 0.08, (r() - 0.5) * 0.15), qFrom(V(r() - 0.5, 1, r() - 0.5)), V(0.03, 0.18, 0.05), pick(r, GREENS));
+      for (let k = 0; k < 7; k++) {
+        const a = (k / 7) * Math.PI * 2 + r() * 0.4;
+        const out = V(Math.cos(a), 0, Math.sin(a));
+        let prev = V(0, 0.05, 0);
+        for (let j = 1; j <= 4; j++) {
+          const t = j / 4;
+          const p = out.clone().multiplyScalar(0.36 * t).add(V(0, 0.05 + Math.sin(t * Math.PI * 0.85) * 0.5, 0));
+          stemBetween(rc, prev, p, 0.008, '#4E7A3E');
+          if (j >= 2) bloom(rc, 'bell', p, V(0, -1, 0), r, 1.5);
+          prev = p;
+        }
+      }
+      return rc;
+    }
   }
-  const count = { glory: 14, rose: 11, poppy: 8, daisy: 12, cherry: 9, bell: 10 }[team] ?? 10;
-  const minY = team === 'bell' ? -0.4 : team === 'poppy' || team === 'daisy' ? 0.3 : 0.05;
-  for (let k = 0; k < count; k++) {
-    const L = pick(r, leaves), dir = randDir(r, minY, 1);
+  // Fallback: a plain leafy mound with team blooms.
+  const leaves = mound(rc, r, 9, [0.15, 0.24], 0.2, GREENS);
+  for (let k = 0; k < 10; k++) {
+    const L = pick(r, leaves), dir = randDir(r, 0.05, 1);
     bloom(rc, team, L.p.clone().addScaledVector(dir, L.rad * 0.96), dir, r);
   }
   return rc;
@@ -163,19 +268,85 @@ export function sprouts(r: Rng): Recipe {
   return rc;
 }
 
-/** Burst hydrant and puddle. */
-export function hydrant(r: Rng): Recipe {
+/** Where the hydrant stands on a water tile (local coordinates). */
+export const HYDRANT_AT = V(0.24, 0, -0.22);
+export const NOZZLE = V(0.24 - 0.13, SLAB_TOP + 0.24, -0.22);
+
+/** A burst fire hydrant over a big puddle. The spray itself is animated separately. */
+export function hydrant(_r: Rng): Recipe {
   const rc = new Recipe();
-  rc.add('puddle', V(-0.05, GROUND + 0.004, 0.05), null, V(0.32, 1, 0.25), '#A9C3CE');
-  const red = '#A8473B';
-  const hx = 0.26, hz = -0.24;
-  rc.add('cyl', V(hx, SLAB_TOP + 0.11, hz), null, V(0.065, 0.22, 0.065), red);
-  rc.add('dome', V(hx, SLAB_TOP + 0.22, hz), null, 0.065, red);
-  rc.add('cyl', V(hx - 0.07, SLAB_TOP + 0.14, hz), new THREE.Quaternion().setFromEuler(new THREE.Euler(0, 0, Math.PI / 2)), V(0.025, 0.08, 0.025), red);
-  const tilt = r() * 0.3;
-  for (let t = 0; t < 9; t++) {
-    const s = t / 8;
-    rc.add('ball', V(hx - 0.11 - s * 0.26, SLAB_TOP + 0.14 + Math.sin(s * Math.PI) * 0.12, hz + s * (0.1 + tilt)), null, 0.022 - t * 0.0013, '#CFE3EA');
+  rc.add('puddle', V(-0.04, GROUND + 0.004, 0.06), null, V(0.44, 1, 0.36), '#9DBBC8');
+  rc.add('puddle', V(-0.04, GROUND + 0.006, 0.06), null, V(0.3, 1, 0.24), '#B9D4DE');
+  const red = '#C24A3A', dark = '#8E3328';
+  const { x: hx, z: hz } = HYDRANT_AT;
+  rc.add('cyl', V(hx, SLAB_TOP + 0.02, hz), null, V(0.12, 0.04, 0.12), dark);
+  rc.add('cyl', V(hx, SLAB_TOP + 0.17, hz), null, V(0.085, 0.3, 0.085), red);
+  rc.add('cyl', V(hx, SLAB_TOP + 0.26, hz), null, V(0.1, 0.03, 0.1), dark);
+  rc.add('dome', V(hx, SLAB_TOP + 0.31, hz), null, V(0.085, 0.07, 0.085), red);
+  rc.add('cyl', V(hx, SLAB_TOP + 0.39, hz), null, V(0.02, 0.04, 0.02), dark);
+  const side = new THREE.Quaternion().setFromEuler(new THREE.Euler(0, 0, Math.PI / 2));
+  rc.add('cyl', V(hx - 0.1, SLAB_TOP + 0.24, hz), side, V(0.035, 0.08, 0.035), red);
+  rc.add('cyl', V(hx + 0.1, SLAB_TOP + 0.2, hz), side, V(0.03, 0.06, 0.03), dark);
+  const front = new THREE.Quaternion().setFromEuler(new THREE.Euler(Math.PI / 2, 0, 0));
+  rc.add('cyl', V(hx, SLAB_TOP + 0.18, hz + 0.1), front, V(0.04, 0.06, 0.04), red);
+  return rc;
+}
+
+/**
+ * Captured water flourishes: lily pads (some blooming in the owner's flower),
+ * reeds and cattails, team bushes at the corners and vines up the hydrant.
+ */
+export function oasis(team: string, r: Rng, isFountain = false): Recipe {
+  const rc = new Recipe();
+  for (const [x, z, s] of [[-0.32, -0.32, 0.55], [-0.36, 0.34, 0.5], [0.36, 0.33, 0.45]] as [number, number, number][]) {
+    rc.merge(bush(team, r).scaled(s).transform(r() * 6, V(x, GROUND, z)));
+  }
+  const padY = isFountain ? SLAB_TOP + 0.135 : GROUND + 0.012;
+  for (let k = 0; k < 4; k++) {
+    const p = isFountain
+      ? V(Math.cos(k * 1.6) * 0.24, padY, Math.sin(k * 1.6) * 0.24)
+      : V(-0.04 + (r() - 0.5) * 0.5, padY, 0.06 + (r() - 0.5) * 0.36);
+    rc.add('disc', p, null, V(0.07, 0.008, 0.07), pick(r, ['#4F8C3E', '#5FA34E']));
+    if (k < 2) bloom(rc, team, p.clone().add(V(0, 0.03, 0)), V(0, 1, 0), r, 0.9);
+  }
+  for (let k = 0; k < 5; k++) {
+    const p = V(0.05 + (r() - 0.5) * 0.25, 0, 0.33 + (r() - 0.5) * 0.08);
+    const h = 0.3 + r() * 0.2;
+    rc.add('stem', p.clone().add(V(0, h / 2, 0)), qFrom(V((r() - 0.5) * 0.2, 1, 0)), V(0.008, h, 0.008), '#5F8D41');
+    if (k % 2 === 0) rc.add('bud', p.clone().add(V(0, h, 0)), null, V(0.022, 0.06, 0.022), '#6B4A2A');
+  }
+  if (isFountain) return rc;
+  // Vines spiralling up the hydrant.
+  for (let k = 0; k < 9; k++) {
+    const a = k * 1.3, y = SLAB_TOP + 0.04 + k * 0.035;
+    const p = HYDRANT_AT.clone().add(V(Math.cos(a) * 0.1, y, Math.sin(a) * 0.1));
+    rc.add('leafLo', p, randQuat(r), V(0.04, 0.02, 0.035), pick(r, GREENS));
+    if (k % 3 === 2) bloom(rc, team, p.clone().add(V(Math.cos(a) * 0.03, 0, Math.sin(a) * 0.03)), V(Math.cos(a), 0.4, Math.sin(a)).normalize(), r, 0.8);
+  }
+  return rc;
+}
+
+/**
+ * Ivy for a building being overgrown. `anchors` are points on its walls (sorted
+ * bottom-up) and roof; `coverage` (0..1) is how much of it is claimed.
+ */
+export function ivy(team: string, anchors: { p: THREE.Vector3; n: THREE.Vector3; roof: boolean }[], coverage: number, r: Rng): Recipe {
+  const rc = new Recipe();
+  const walls = anchors.filter((a) => !a.roof);
+  const n = Math.round(walls.length * coverage);
+  for (let k = 0; k < n; k++) {
+    const a = walls[k];
+    const s = 0.1 + r() * 0.07;
+    rc.add('leafLo', a.p.clone().addScaledVector(a.n, 0.04), randQuat(r), V(s, s * 1.2, s * 0.55), pick(r, GREENS));
+    if (k % 2 === 1) bloom(rc, team, a.p.clone().addScaledVector(a.n, 0.1), a.n.clone().add(V(0, 0.3, 0)).normalize(), r, 1.1);
+  }
+  if (coverage >= 1) {
+    // A roof garden once the building is surrounded.
+    const roofs = anchors.filter((a) => a.roof);
+    roofs.forEach((a, k) => {
+      if (k % 2 === 0) rc.merge(bush(team, r).scaled(0.45).transform(r() * 6, a.p));
+      else rc.add('leafLo', a.p.clone().add(V(0, 0.05, 0)), randQuat(r), 0.1, pick(r, GREENS));
+    });
   }
   return rc;
 }

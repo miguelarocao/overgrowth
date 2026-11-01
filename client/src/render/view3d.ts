@@ -1,31 +1,37 @@
-// Renderer, cameras, tilt-shift post-processing and the badge overlay.
-// Stem counts are drawn on a 2D canvas *after* post-processing so they stay sharp.
+// Renderer, cameras, controls, and the 2D overlay (stem badges, floaters and the
+// top-down map layer), which is drawn on its own canvas so it is always crisp.
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
-import { HorizontalTiltShiftShader } from 'three/addons/shaders/HorizontalTiltShiftShader.js';
 import { HueSaturationShader } from 'three/addons/shaders/HueSaturationShader.js';
-import { VerticalTiltShiftShader } from 'three/addons/shaders/VerticalTiltShiftShader.js';
+import { teamColor } from '../../../shared/teams';
 import type { Dir } from '../../../shared/types';
 import type { Badge, World } from './world';
 
 export interface ViewSettings {
-  tilt: boolean;
-  blur: number;
   topDown: boolean;
+  /** Mouse rotate sensitivity. */
+  rotateSpeed: number;
+  /** Drag and WASD pan speed multiplier. */
+  panSpeed: number;
+  zoomSpeed: number;
+  /** Left-drag pans (right-drag rotates). False swaps them. */
+  dragPans: boolean;
+  /** Team colours, hatched buildings and outlines drawn over the top-down view. */
+  mapLayer: boolean;
 }
 
-const SETTINGS_KEY = 'og-view';
+const SETTINGS_KEY = 'og-view2';
+export const DEFAULT_VIEW: ViewSettings = { topDown: false, rotateSpeed: 0.35, panSpeed: 1, zoomSpeed: 1, dragPans: true, mapLayer: true };
 
 export function loadSettings(): ViewSettings {
-  const d: ViewSettings = { tilt: true, blur: 0.4, topDown: false };
   try {
-    return { ...d, ...JSON.parse(localStorage.getItem(SETTINGS_KEY) ?? '{}') };
+    return { ...DEFAULT_VIEW, ...JSON.parse(localStorage.getItem(SETTINGS_KEY) ?? '{}') };
   } catch {
-    return d;
+    return { ...DEFAULT_VIEW };
   }
 }
 
@@ -52,7 +58,6 @@ export class View3D {
   readonly renderer: THREE.WebGLRenderer;
   private composer: EffectComposer;
   private renderPass: RenderPass;
-  private tiltPasses: ShaderPass[] = [];
   readonly persp = new THREE.PerspectiveCamera(30, 1, 0.1, 400);
   readonly ortho = new THREE.OrthographicCamera(-1, 1, 1, -1, 0.1, 200);
   private controls: OrbitControls;
@@ -70,6 +75,10 @@ export class View3D {
   private floaters: Floater[] = [];
   private shakeAmt = 0;
   private shakeUntil = 0;
+  /** Keys currently held for panning (w, a, s, d). */
+  readonly held = new Set<string>();
+  private spin: { from: number; to: number; t0: number; done: number } | null = null;
+  private lastFrame = 0;
 
   constructor(readonly canvas: HTMLCanvasElement, overlay: HTMLCanvasElement) {
     this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
@@ -86,23 +95,15 @@ export class View3D {
     this.composer = new EffectComposer(this.renderer, new THREE.WebGLRenderTarget(1, 1, { samples: 4, type: THREE.HalfFloatType }));
     this.renderPass = new RenderPass(this.emptyScene, this.persp);
     this.composer.addPass(this.renderPass);
-    for (let k = 0; k < 2; k++) {
-      const h = new ShaderPass(HorizontalTiltShiftShader);
-      const v = new ShaderPass(VerticalTiltShiftShader);
-      this.composer.addPass(h);
-      this.composer.addPass(v);
-      this.tiltPasses.push(h, v);
-    }
     const sat = new ShaderPass(HueSaturationShader);
     sat.uniforms.saturation.value = 0.18;
     this.composer.addPass(sat);
     this.composer.addPass(new OutputPass());
 
     this.controls = new OrbitControls(this.persp, canvas);
-    Object.assign(this.controls, { enableDamping: true, enablePan: true, screenSpacePanning: false, minPolarAngle: 0.2, maxPolarAngle: 1.2 });
-    this.controls.mouseButtons = { LEFT: THREE.MOUSE.ROTATE, MIDDLE: THREE.MOUSE.DOLLY, RIGHT: THREE.MOUSE.PAN };
+    Object.assign(this.controls, { enableDamping: true, dampingFactor: 0.12, enablePan: true, screenSpacePanning: false, minPolarAngle: 0.15, maxPolarAngle: 1.15 });
     this.orthoControls = new OrbitControls(this.ortho, canvas);
-    Object.assign(this.orthoControls, { enableRotate: false, enableDamping: true, screenSpacePanning: true, minZoom: 0.6, maxZoom: 4 });
+    Object.assign(this.orthoControls, { enableRotate: false, enableDamping: true, dampingFactor: 0.12, screenSpacePanning: true, minZoom: 0.7, maxZoom: 5 });
     this.orthoControls.mouseButtons = { LEFT: THREE.MOUSE.PAN, MIDDLE: THREE.MOUSE.DOLLY, RIGHT: THREE.MOUSE.PAN };
     this.orthoControls.enabled = false;
 
@@ -147,7 +148,15 @@ export class View3D {
     this.fitOrtho();
   }
 
-  /** Glide the camera so `p` is in the middle of the screen (the sharp band). */
+  /** Rotate the 3D camera a quarter turn around its target (animated). */
+  quarterTurn(dir = 1) {
+    if (this.settings.topDown) return;
+    const az = this.controls.getAzimuthalAngle();
+    const snapped = Math.round(az / (Math.PI / 2)) * (Math.PI / 2);
+    this.spin = { from: 0, to: snapped + dir * (Math.PI / 2) - az, t0: performance.now(), done: 0 };
+  }
+
+  /** Move the camera so `p` is in the middle of the screen. */
   focus(p: THREE.Vector3, closer = false) {
     const c = this.controls;
     const offset = this.persp.position.clone().sub(c.target);
@@ -179,14 +188,12 @@ export class View3D {
 
   private applySettings() {
     const s = this.settings;
-    const on = s.tilt && !s.topDown;
-    const amt = 2 + 14 * s.blur; // gentler than the 8x8 kit: boards here are 20-26 tiles
-    for (const p of this.tiltPasses) {
-      p.enabled = on && s.blur > 0;
-      if (p.uniforms.h) p.uniforms.h.value = amt / innerWidth;
-      if (p.uniforms.v) p.uniforms.v.value = amt / innerHeight;
-      p.uniforms.r.value = 0.5;
-    }
+    Object.assign(this.controls, { rotateSpeed: s.rotateSpeed, panSpeed: s.panSpeed, zoomSpeed: s.zoomSpeed });
+    Object.assign(this.orthoControls, { panSpeed: s.panSpeed, zoomSpeed: s.zoomSpeed });
+    this.controls.mouseButtons = s.dragPans
+      ? { LEFT: THREE.MOUSE.PAN, MIDDLE: THREE.MOUSE.DOLLY, RIGHT: THREE.MOUSE.ROTATE }
+      : { LEFT: THREE.MOUSE.ROTATE, MIDDLE: THREE.MOUSE.DOLLY, RIGHT: THREE.MOUSE.PAN };
+    this.orthoControls.mouseButtons = { LEFT: THREE.MOUSE.PAN, MIDDLE: THREE.MOUSE.DOLLY, RIGHT: THREE.MOUSE.PAN };
     this.controls.enabled = !s.topDown;
     this.orthoControls.enabled = s.topDown;
     this.renderPass.camera = this.camera;
@@ -209,7 +216,7 @@ export class View3D {
     this.applySettings();
   }
 
-  /** Floating text that rises and fades above a world position (drawn sharp, after the blur). */
+  /** Floating text that rises and fades above a world position. */
   float(pos: THREE.Vector3, text: string, color = '#FFFFFF', size = 15, life = 1100) {
     if (this.floaters.length > 80) this.floaters.shift();
     this.floaters.push({ pos: pos.clone(), text, color, t0: performance.now(), life, size });
@@ -278,7 +285,19 @@ export class View3D {
       return;
     }
     this.blank = false;
+    const dt = this.lastFrame ? Math.min(0.05, (now - this.lastFrame) / 1000) : 0;
+    this.lastFrame = now;
     const c = this.settings.topDown ? this.orthoControls : this.controls;
+    this.keyPan(c, dt);
+    if (this.spin && !this.settings.topDown) {
+      const p = Math.min(1, (now - this.spin.t0) / 320);
+      const eased = 1 - Math.pow(1 - p, 3);
+      const want = this.spin.to * eased;
+      const off = this.persp.position.clone().sub(this.controls.target).applyAxisAngle(new THREE.Vector3(0, 1, 0), want - this.spin.done);
+      this.persp.position.copy(this.controls.target).add(off);
+      this.spin.done = want;
+      if (p >= 1) this.spin = null;
+    }
     c.update();
     this.clampTarget(c);
     this.world?.frame(now);
@@ -294,6 +313,27 @@ export class View3D {
     if (jolt) cam.position.sub(jolt);
     this.drawBadges();
     this.drawFloaters(now);
+  }
+
+  /** WASD panning, relative to where the camera is looking. */
+  private keyPan(c: OrbitControls, dt: number) {
+    if (!this.held.size || !dt) return;
+    const f = (this.held.has('w') ? 1 : 0) - (this.held.has('s') ? 1 : 0);
+    const r = (this.held.has('d') ? 1 : 0) - (this.held.has('a') ? 1 : 0);
+    if (!f && !r) return;
+    let fwd: THREE.Vector3, right: THREE.Vector3, scale: number;
+    if (this.settings.topDown) {
+      fwd = new THREE.Vector3(0, 0, -1);
+      right = new THREE.Vector3(1, 0, 0);
+      scale = (this.ortho.top - this.ortho.bottom) / this.ortho.zoom;
+    } else {
+      fwd = c.target.clone().sub(this.persp.position).setY(0).normalize();
+      right = new THREE.Vector3().crossVectors(fwd, new THREE.Vector3(0, 1, 0)).normalize();
+      scale = this.persp.position.distanceTo(c.target);
+    }
+    const move = fwd.multiplyScalar(f).add(right.multiplyScalar(r)).normalize().multiplyScalar(scale * 0.7 * this.settings.panSpeed * dt);
+    c.target.add(move);
+    c.object.position.add(move);
   }
 
   private drawFloaters(now: number) {
@@ -322,6 +362,61 @@ export class View3D {
     });
   }
 
+  /** Top-down map layer: team-coloured territory, hatched buildings, outlined water. */
+  private drawMap() {
+    const world = this.world!;
+    const g = world.game;
+    const ctx = this.ctx;
+    const ppu = (innerHeight * this.ortho.zoom) / (this.ortho.top - this.ortho.bottom);
+    const v = new THREE.Vector3();
+    const s = ppu;
+    for (let i = 0; i < g.tiles.length; i++) {
+      const t = g.tiles[i];
+      v.copy(world.tilePos(i)).project(this.ortho);
+      const cx = ((v.x + 1) / 2) * innerWidth, cy = ((1 - v.y) / 2) * innerHeight;
+      if (cx < -s || cy < -s || cx > innerWidth + s || cy > innerHeight + s) continue;
+      const x = cx - s / 2, y = cy - s / 2;
+      if (t.kind === 'building') {
+        if (!t.visible) continue; // the fog keeps its secrets
+        ctx.fillStyle = 'rgba(18,20,22,0.5)';
+        ctx.fillRect(x, y, s, s);
+        ctx.strokeStyle = 'rgba(255,255,255,0.18)';
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        for (let k = -2; k <= 2; k++) {
+          ctx.moveTo(x + Math.max(0, k) * s / 3, y + Math.max(0, -k) * s / 3);
+          ctx.lineTo(x + s - Math.max(0, -k) * s / 3, y + s - Math.max(0, k) * s / 3);
+        }
+        ctx.stroke();
+        continue;
+      }
+      if (!t.visible) continue;
+      if (t.owner !== null) {
+        const c = teamColor(g.teamOf(t.owner));
+        ctx.globalAlpha = 0.3;
+        ctx.fillStyle = c;
+        ctx.fillRect(x, y, s, s);
+        ctx.globalAlpha = 1;
+        ctx.strokeStyle = c;
+        ctx.lineWidth = t.isMother ? 3.5 : 1.5;
+        ctx.strokeRect(x + 1.5, y + 1.5, s - 3, s - 3);
+        if (t.isMother) {
+          ctx.font = `${Math.round(s * 0.36)}px system-ui, sans-serif`;
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'middle';
+          ctx.fillText('👑', cx, y + s * 0.2);
+        }
+      }
+      if (t.kind === 'water') {
+        ctx.strokeStyle = '#8FD0F0';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.arc(cx, cy, s * 0.36, 0, Math.PI * 2);
+        ctx.stroke();
+      }
+    }
+  }
+
   private drawBadges() {
     const ctx = this.ctx;
     const dpr = this.overlay.width / innerWidth;
@@ -329,6 +424,7 @@ export class View3D {
     ctx.clearRect(0, 0, this.overlay.width, this.overlay.height);
     if (!this.world) return;
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    if (this.settings.topDown && this.settings.mapLayer) this.drawMap();
     const cam = this.camera as THREE.PerspectiveCamera | THREE.OrthographicCamera;
     const w = innerWidth, h = innerHeight;
     const all = [...this.world.badges, ...this.extraBadges()];

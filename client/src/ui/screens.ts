@@ -25,6 +25,7 @@ export function homeScreen(go: (path: string) => void): HTMLElement {
         <button class="btn primary grow" id="create">Create a room</button>
         <button class="btn grow" id="offline">Play offline vs bots</button>
       </div>
+      <button class="btn" id="tutorial">New here? Play the 2-minute tutorial</button>
       <form class="row" id="join">
         <input class="input grow" id="code" placeholder="Room code, e.g. moss-4k2p" aria-label="Room code" autocomplete="off">
         <button class="btn" type="submit">Join</button>
@@ -32,7 +33,7 @@ export function homeScreen(go: (path: string) => void): HTMLElement {
       <div>
         <div class="eyebrow" style="margin-bottom:6px">How to play</div>
         <ul class="rules">
-          <li><b>Click</b> one of your tiles, then press <b>arrows / WASD</b> to send its stems. Each press queues a step and moves on, so you can draw a path.</li>
+          <li><b>Click</b> one of your tiles, then press the <b>arrow keys</b> to send its stems. Each press queues a step and moves on, so you can draw a path. <b>WASD</b> moves the camera.</li>
           <li>Each step sends all stems but one. <kbd>Z</kbd> sends half on the next step. <kbd>E</kbd> undoes, <kbd>Q</kbd> clears.</li>
           <li>Mother plants and water you own grow 1 stem per turn. All your land grows 1 every 25 turns.</li>
           <li>Capture a rival's mother plant to take everything they have. Last mother standing wins.</li>
@@ -54,6 +55,7 @@ export function homeScreen(go: (path: string) => void): HTMLElement {
   name.addEventListener('input', () => savedName.set(name.value.trim()));
   root.querySelector('#create')!.addEventListener('click', () => go(`/r/${randomCode()}`));
   root.querySelector('#offline')!.addEventListener('click', () => go('/offline'));
+  root.querySelector('#tutorial')!.addEventListener('click', () => go('/offline?tutorial=1'));
   root.querySelector('#join')!.addEventListener('submit', (e) => {
     e.preventDefault();
     const raw = root.querySelector<HTMLInputElement>('#code')!.value.trim().toLowerCase();
