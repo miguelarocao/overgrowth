@@ -98,7 +98,7 @@ export function lobbyScreen(msg: { code: string; players: LobbyPlayer[]; host: n
       ${isHost ? `
       <div class="row">
         <button class="btn grow" id="bot" ${full ? 'disabled' : ''}>Add bot</button>
-        <button class="btn grow" id="fill" ${full ? 'disabled' : ''}>Fill with bots</button>
+        <button class="btn grow" id="fill" ${full ? 'disabled' : ''}>Fill to ${msg.players.length < 4 ? 4 : 8} with bots</button>
         <button class="btn primary grow" id="start" ${msg.players.length < 2 ? 'disabled' : ''}>Start game</button>
       </div>
       ${msg.players.length < 2 ? '<p class="note">Need at least 2 players. Share the link or add a bot.</p>' : ''}` : '<p class="note">Waiting for the host to start…</p>'}
@@ -122,7 +122,7 @@ export function lobbyScreen(msg: { code: string; players: LobbyPlayer[]; host: n
   });
   root.querySelector('#bot')?.addEventListener('click', () => act.send({ t: 'addBot' }));
   root.querySelector('#fill')?.addEventListener('click', () => {
-    for (let k = msg.players.length; k < Math.max(4, msg.players.length); k++) act.send({ t: 'addBot' });
+    for (let k = msg.players.length; k < (msg.players.length < 4 ? 4 : MAX_PLAYERS); k++) act.send({ t: 'addBot' });
   });
   root.querySelector('#start')?.addEventListener('click', () => act.send({ t: 'start' }));
   return root;

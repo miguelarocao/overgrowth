@@ -16,6 +16,14 @@ export interface Connection {
 }
 
 const store = {
+  /** This tab's own value (survives reloads). */
+  own(k: string) {
+    try {
+      return sessionStorage.getItem(k);
+    } catch {
+      return null;
+    }
+  },
   get(k: string) {
     try {
       return sessionStorage.getItem(k) ?? localStorage.getItem(k);
@@ -51,7 +59,9 @@ export class WsConnection implements Connection {
     this.ws = ws;
     ws.onopen = () => {
       this.retry = 0;
-      ws.send(JSON.stringify({ t: 'join', room: this.room, name: this.name(), token: store.get(`og-token-${this.room}`) ?? undefined }));
+      const key = `og-token-${this.room}`;
+      const own = store.own(key);
+      ws.send(JSON.stringify({ t: 'join', room: this.room, name: this.name(), token: own ?? store.get(key) ?? undefined, resume: !!own }));
       for (const m of this.outbox.splice(0)) ws.send(JSON.stringify(m));
       this.h.onStatus('open');
     };

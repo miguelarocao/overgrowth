@@ -90,11 +90,12 @@ export class Room {
 
   // ---------- connections ----------
 
-  join(conn: Conn, name: unknown, token?: unknown) {
+  join(conn: Conn, name: unknown, token?: unknown, resume = false) {
     this.lastActive = this.hooks.now();
     let seat = typeof token === 'string' && token ? this.seats.find((s) => !s.isBot && s.token === token) : undefined;
-    // Same token already live in another tab: treat this one as a new player.
-    if (seat && seat.conn && seat.conn !== conn) seat = undefined;
+    // A token borrowed from another open tab gets its own seat; this tab's own token
+    // (a reload whose old socket hasn't closed yet) takes the seat over.
+    if (seat && seat.conn && seat.conn !== conn && !resume) seat = undefined;
     if (seat) {
       seat.conn = conn;
       seat.disconnectedAt = null;

@@ -150,7 +150,7 @@ wss.on('connection', (ws: WebSocket) => {
       }
       if (entry) entry.room.disconnect(conn);
       entry = getRoom(code);
-      entry.room.join(conn, msg.name, msg.token);
+      entry.room.join(conn, msg.name, msg.token, msg.resume === true);
       return;
     }
     try {

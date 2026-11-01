@@ -150,3 +150,22 @@ describe('room game', () => {
     expect(room.phase).toBe('lobby');
   });
 });
+
+describe('reconnect races', () => {
+  it("a reload whose old socket is still open takes its seat back; another tab's token gets a new seat", () => {
+    let now = 0;
+    const room = new Room('r', { now: () => now, random: () => 0.5, startTicking() {}, stopTicking() {} });
+    const a = new FakeConn();
+    room.join(a, 'A');
+    const token = a.last('welcome')!.token;
+    const other = new FakeConn();
+    room.join(other, 'B', token, false);
+    expect(other.last('welcome')!.token).not.toBe(token);
+    const reloaded = new FakeConn();
+    room.join(reloaded, 'A', token, true);
+    expect(reloaded.last('welcome')!.token).toBe(token);
+    expect(room.seats.length).toBe(2);
+    room.disconnect(a); // late close of the old socket must not knock the new one off
+    expect(room.seats.find((s) => s.token === token)!.conn).toBe(reloaded);
+  });
+});

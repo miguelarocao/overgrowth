@@ -25,7 +25,8 @@ export interface PlayerInfo {
 export type TileDelta = [number, number, number, number, number, number];
 
 export type ClientMsg =
-  | { t: 'join'; room: string; name: string; token?: string }
+  /** resume: the token is this tab's own (take the seat over); otherwise it may belong to another open tab. */
+  | { t: 'join'; room: string; name: string; token?: string; resume?: boolean }
   | { t: 'rename'; name: string }
   | { t: 'pickTeam'; team: string }
   | { t: 'addBot' }

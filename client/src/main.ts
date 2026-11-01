@@ -190,6 +190,7 @@ function gameScreen(code: string | null): Screen {
         if (!game || !hud) return;
         game.over = true;
         game.winner = m.winner;
+        hud.update(game);
         setTimeout(() => hud?.gameOver(game!, m.winner, m.replayId, isHost || offline), 700);
         break;
       case 'error':

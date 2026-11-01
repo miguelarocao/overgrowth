@@ -85,6 +85,7 @@ export class Hud {
       </tr>`).join('');
     const queue = this.root.querySelector('#queue');
     if (!queue) return;
+    if (g.over) this.root.querySelector('#surrender')?.setAttribute('hidden', '');
     if (!g.alive) {
       this.q('#q-title').textContent = g.you === null ? 'Spectating' : 'Eliminated';
       this.q('#readout').textContent = 'Full view';
@@ -112,7 +113,7 @@ export class Hud {
       <div class="overlay"><section class="panel card" role="dialog" aria-label="Game over">
         <div class="eyebrow">Game over · turn ${Math.floor(g.tick / 2)}</div>
         <h2 class="title">${youWon ? 'You bloomed' : w ? `${esc(w.name)} wins` : 'Draw'}</h2>
-        ${w ? `<p class="lede" style="display:flex;gap:8px;align-items:center">${glyph(w.team, 22)} ${esc(TEAM_BY_KEY[w.team]?.name ?? '')} took the city with ${w.land} tiles.</p>` : ''}
+        ${w ? `<p class="lede" style="display:flex;gap:8px;align-items:center">${glyph(w.team, 22)} ${esc(TEAM_BY_KEY[w.team]?.name ?? '')} took the city with ${w.land} ${w.land === 1 ? 'tile' : 'tiles'}.</p>` : ''}
         <div class="row">
           ${replayId ? '<button class="btn" id="watch">Watch replay</button>' : ''}
           <button class="btn" id="look">Look at the board</button>
