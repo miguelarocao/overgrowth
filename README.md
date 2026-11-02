@@ -51,9 +51,11 @@ Arrow keys follow the screen: if you orbit the camera 90°, "up" still means up 
 
 - **A 2-minute tutorial** runs on your first game (and from the home page, or **?** in game).
   Each step waits for you to actually do the thing.
-- **Fog of war** is faked for readability: unexplored ground is dimmed (the city layout stays
-  readable, only who-owns-what is hidden), with soft drifting cloud shadows and broken clouds
-  floating above it. Clouds can be turned off in ⚙ Settings and are always off in top-down.
+- **Fog of war** keeps the map readable: unexplored ground is darkened, but you can still see
+  the streets and buildings. Ownership, stems, mother plants and **hydrants** stay hidden until
+  you scout them (the server never sends them). This is like generals.io, where cities hide in
+  the fog as generic obstacles. Hydrants you've seen are remembered. Optional drifting clouds
+  over unexplored areas are in ⚙ Settings (off by default).
 - **Every team looks different**, not just in colour: morning glory grows vine arches, sunflowers
   tall stalks, lavender spiky tufts, roses dense round shrubs, poppies cups on thin stems, daisies
   a flat white carpet, cherry tiny blossom trees, bluebells weeping fountains of bells. Owned

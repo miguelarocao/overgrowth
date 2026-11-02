@@ -16,10 +16,10 @@ describe('visibility', () => {
     expect([...v].map((x, i) => (x ? i : -1)).filter((i) => i >= 0)).toEqual([0, 1, 5, 6]);
   });
 
-  it('hides ownership, stems and mothers outside vision but keeps terrain', () => {
+  it('hides ownership, stems, mothers and water outside vision but keeps streets and buildings', () => {
     const v = viewFor(s, 0);
     expect(v.full).toBe(false);
-    expect(v.tiles[12]).toEqual({ kind: 'water', owner: null, stems: 0, isMother: false, visible: false });
+    expect(v.tiles[12]).toEqual({ kind: 'plain', owner: null, stems: 0, isMother: false, visible: false }); // hydrants hide in fog
     expect(v.tiles[24]).toEqual({ kind: 'plain', owner: null, stems: 0, isMother: false, visible: false });
     expect(v.tiles[19].kind).toBe('building');
     expect(v.tiles[0]).toMatchObject({ owner: 0, isMother: true, visible: true });

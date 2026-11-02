@@ -1,4 +1,4 @@
-import type { GameState, PlayerId, PlayerView, ViewTile } from './types';
+import type { GameState, PlayerId, PlayerView, TileKind, ViewTile } from './types';
 
 /** Which tiles a player can see: their own tiles and every tile touching them (diagonals too). */
 export function visibilityFor(state: GameState, player: PlayerId): Uint8Array {
@@ -17,9 +17,12 @@ export function visibilityFor(state: GameState, player: PlayerId): Uint8Array {
   return vis;
 }
 
+/** Terrain a player may know about a tile they can't see: water (hydrants) stays hidden until scouted. */
+export const fogKind = (k: TileKind): TileKind => (k === 'water' ? 'plain' : k);
+
 /**
- * What a player is allowed to know. Terrain (buildings, streets, water) is always
- * visible; ownership, stems and mother plants only inside vision. Spectators
+ * What a player is allowed to know. Streets and buildings are always visible;
+ * ownership, stems, mother plants and water (hydrants) only inside vision. Spectators
  * (player = null) and eliminated players get the full, unfogged view.
  */
 export function viewFor(state: GameState, player: PlayerId | null, forceFull = false): PlayerView {
@@ -27,7 +30,7 @@ export function viewFor(state: GameState, player: PlayerId | null, forceFull = f
   const vis = full ? null : visibilityFor(state, player!);
   const tiles: ViewTile[] = state.tiles.map((t, i) => {
     if (!vis || vis[i]) return { kind: t.kind, owner: t.owner, stems: t.stems, isMother: t.isMother, visible: true };
-    return { kind: t.kind, owner: null, stems: 0, isMother: false, visible: false };
+    return { kind: fogKind(t.kind), owner: null, stems: 0, isMother: false, visible: false };
   });
   return { tick: state.tick, width: state.width, height: state.height, tiles, you: player, full };
 }

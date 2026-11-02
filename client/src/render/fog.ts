@@ -6,7 +6,7 @@
 import * as THREE from 'three';
 
 const CLOUD_Y = 2.8;
-const BASE = new THREE.Color('#2A3540');
+const BASE = new THREE.Color('#121920');
 
 const vertexShader = /* glsl */ `
   varying vec2 vUv;
@@ -53,7 +53,7 @@ const fragmentShader = /* glsl */ `
     if (uCloud < 0.5) {
       // Shroud: dim the ground, a little darker under cloud shadows. Stops at the vision edge.
       float body = smoothstep(0.5, 0.92, d);
-      float shade = 0.64 + 0.16 * smoothstep(0.45, 0.75, clouds);
+      float shade = 0.76 + 0.1 * smoothstep(0.45, 0.75, clouds);
       gl_FragColor = vec4(f.rgb, body * shade);
     } else {
       // Clouds: broken puffs (with gaps to see through), only over unexplored areas.
@@ -177,7 +177,8 @@ const stormFragment = /* glsl */ `
     // Round-ish billowing outline: radial falloff pushed around by noise.
     float r = length(p) + (n - 0.5) * 0.55;
     float shape = 1.0 - smoothstep(0.55, 0.95, r);
-    float alpha = shape * smoothstep(0.2, 0.55, n + m * 0.35) * uOpacity;
+    float near = smoothstep(7.0, 16.0, distance(cameraPosition, vWorld));
+    float alpha = shape * smoothstep(0.25, 0.6, n + m * 0.35) * uOpacity * near;
     vec3 light = mix(vec3(0.80, 0.82, 0.84), vec3(0.42, 0.45, 0.50), uDark);
     vec3 shadow = mix(vec3(0.58, 0.60, 0.63), vec3(0.24, 0.27, 0.31), uDark);
     vec3 col = mix(shadow, light, smoothstep(0.35, 0.8, n + (m - 0.5) * 0.4));

@@ -20,7 +20,7 @@ export interface Badge {
 }
 
 const SOIL = new THREE.Color('#3B3026');
-const SMOG_GREY = new THREE.Color('#3E4851'); // unexplored buildings: dimmed to match the shroud
+const SMOG_GREY = new THREE.Color('#2A333B'); // unexplored buildings: dimmed to match the shroud
 const ZERO = new THREE.Matrix4().makeScale(0, 0, 0);
 
 /** Bigger stacks grow bigger plants: the city should look properly overgrown. */
@@ -425,10 +425,10 @@ export class World {
 
   private cloudsOn = true;
 
-  /** Clouds (fog-of-war clouds and the shower cloud's puffs). Off in top-down, where the map matters most. */
-  setClouds(on: boolean) {
-    this.cloudsOn = on;
-    this.fog.setClouds(on);
+  /** Fog-of-war clouds, and the shower cloud (hidden in top-down, where the map matters most). */
+  setClouds(fogClouds: boolean, storm: boolean) {
+    this.cloudsOn = storm;
+    this.fog.setClouds(fogClouds);
   }
 
   /** Height of whatever static geometry is at (x, z): rooftops for props. */
@@ -472,7 +472,7 @@ export class World {
     const c = this.tilePos(sh.y * this.W + sh.x).add(V((sh.size - 1) / 2, 0, (sh.size - 1) / 2));
     this.cloud.position.set(c.x, 4.4, c.z);
     this.cloud.scale.setScalar(sh.size + 3);
-    this.storm.target = w.now ? 0.95 : 0.6;
+    this.storm.target = w.now ? 0.7 : 0.4;
     this.storm.raining = !!w.now;
     // Outline the exact tiles that will get rained on.
     if (this.rainEdge.userData.size !== sh.size) {
@@ -706,7 +706,7 @@ export class World {
       for (let y = b.y; y < b.y + b.h; y++) for (let x = b.x; x < b.x + b.w; x++) if (g.tiles[y * this.W + x].visible) seen = true;
       const hidden = !seen;
       if (hidden !== this.buildingHidden[k] || all) {
-        this.city.tint(`b${k}`, SMOG_GREY, hidden ? 0.6 : 0);
+        this.city.tint(`b${k}`, SMOG_GREY, hidden ? 0.72 : 0);
         this.buildingHidden[k] = hidden;
       }
     });

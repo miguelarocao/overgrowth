@@ -72,10 +72,10 @@ export class Tutorial {
         done: (g) => landOf(g) >= 4
       },
       {
-        html: '<b>Fog</b> hides everything you haven\'t reached; only tall buildings poke through. Your growth lifts it. Bigger stacks grow bigger plants.',
+        html: 'The <b>dark areas</b> are unexplored. You can see streets and buildings there, but not who is there, how strong they are, or where the hydrants are. Your growth lights them up. Bigger stacks grow bigger plants.',
       },
       {
-        html: '💧 <b>Fire hydrants</b> are guarded by 40–50 stems, but once yours they grow +1 every turn, like a second mother plant. Build a big stack first. Surround a building and it gets overgrown 🌿.',
+        html: '💧 <b>Fire hydrants</b> hide in the dark until you find them. They\'re guarded by 40–50 stems, but once yours they grow +1 every turn, like a second mother plant. Build a big stack first. Surround a building and it gets overgrown 🌿.',
         point: (g) => {
           let best = -1, bd = Infinity;
           const m = motherOf(g);
@@ -137,7 +137,8 @@ export class Tutorial {
     if (i < 0) return [];
     const pulse = Math.sin(performance.now() * 0.006) * 0.08;
     const y = this.game.tiles[i].isMother ? 3.0 : 1.0;
-    return [{ pos: this.world.tilePos(i, y + pulse), text: this.k === 1 ? '👇 click' : '👇', ring: '#FFFFFF', ghost: false }];
+    const label = this.k === 1 ? '👇 click me' : this.game.tiles[i].isMother ? '👇 your mother plant' : this.game.tiles[i].kind === 'water' ? '👇 hydrant' : '👇';
+    return [{ pos: this.world.tilePos(i, y + pulse), text: label, ring: '#FFFFFF', ghost: false }];
   }
 
   close(finished = true) {

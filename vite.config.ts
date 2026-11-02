@@ -12,5 +12,5 @@ export default defineConfig({
       '/api': { target: 'http://localhost:8787' }
     }
   },
-  test: { root: '.', include: ['shared/**/*.test.ts', 'server/**/*.test.ts', 'bots/**/*.test.ts'] }
+  test: { root: '.', include: ['shared/**/*.test.ts', 'server/**/*.test.ts', 'bots/**/*.test.ts', 'client/src/**/*.test.ts'] }
 } as any);

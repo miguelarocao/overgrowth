@@ -13,7 +13,7 @@ import type { Replay } from '../shared/replay';
 import { GameSession, isWellFormedMove, type TickReport } from '../shared/session';
 import { TEAMS, TEAM_BY_KEY } from '../shared/teams';
 import type { PlayerId, ViewTile } from '../shared/types';
-import { viewFor } from '../shared/view';
+import { fogKind, viewFor } from '../shared/view';
 
 export interface Conn {
   send(msg: ServerMsg): void;
@@ -311,7 +311,7 @@ export class Room {
   private sendStarted(conn: Conn, you: PlayerId | null) {
     const s = this.session!.state;
     conn.send({
-      t: 'started', width: s.width, height: s.height, terrain: this.session!.initial.tiles.map((t) => kindCode(t.kind)),
+      t: 'started', width: s.width, height: s.height, terrain: this.session!.initial.tiles.map((t) => kindCode(you === null || this.phase === 'over' ? t.kind : fogKind(t.kind))),
       buildings: s.buildings, fountain: s.fountain, you, players: this.playerInfos(), tickMs: this.tickMs, tick: s.tick, rules: s.rules
     });
   }

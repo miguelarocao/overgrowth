@@ -46,6 +46,8 @@ export class ClientGame {
   private seq = 0;
   private nextId = Math.floor(Math.random() * 1e9);
   private cachedQueue: QueuedMove[] | null = null;
+  /** Hydrants we've scouted: the server hides water in fog, but we remember what we saw. */
+  private knownWater = new Set<number>();
 
   constructor(msg: StartedMsg, private send: (m: ClientMsg) => void) {
     this.width = msg.width;
@@ -73,6 +75,8 @@ export class ClientGame {
     const changed: number[] = [];
     for (const d of msg.changedTiles) {
       const t = decodeTile(d);
+      if (t.visible && t.kind === 'water') this.knownWater.add(d[0]);
+      else if (!t.visible && this.knownWater.has(d[0])) t.kind = 'water';
       this.tiles[d[0]] = t;
       if (t.visible) this.lastSeen[d[0]] = t.owner;
       changed.push(d[0]);

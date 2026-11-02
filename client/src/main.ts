@@ -180,6 +180,10 @@ function gameScreen(code: string | null): Screen {
         break;
       case 'started': {
         const firstStart = !game;
+        // A fresh game state (e.g. after a reconnect): drop any tutorial bound to the old one,
+        // otherwise its board pointer would linger without its panel.
+        tutorial?.close(false);
+        tutorial = null;
         game = new ClientGame(m, send);
         ({ world, vines } = attachGame(game));
         hud = new Hud(view!, {

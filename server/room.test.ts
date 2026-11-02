@@ -92,6 +92,12 @@ describe('room game', () => {
       }
     }
     expect(a.last('started')!.terrain.length).toBe(state.tiles.length);
+    // Water (hydrants) never leaks through the initial terrain or hidden deltas.
+    const WATER = 3;
+    a.last('started')!.terrain.forEach((k, i) => {
+      if (k === WATER) expect(vis[i] || i === state.fountain).toBeTruthy();
+    });
+    for (const [i, t] of known) if (!vis[i]) expect(t.kind).not.toBe('water');
   });
 
   it('keeps each queue private and acks client seqs', () => {
