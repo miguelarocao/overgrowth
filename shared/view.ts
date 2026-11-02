@@ -1,14 +1,15 @@
+import { VISION_RADIUS } from './config';
 import type { GameState, PlayerId, PlayerView, TileKind, ViewTile } from './types';
 
-/** Which tiles a player can see: their own tiles and every tile touching them (diagonals too). */
+/** Which tiles a player can see: everything within VISION_RADIUS of a tile they own (diagonals too). */
 export function visibilityFor(state: GameState, player: PlayerId): Uint8Array {
   const { width: W, height: H, tiles } = state;
   const vis = new Uint8Array(tiles.length);
   for (let i = 0; i < tiles.length; i++) {
     if (tiles[i].owner !== player) continue;
     const x = i % W, y = Math.floor(i / W);
-    for (let dy = -1; dy <= 1; dy++) {
-      for (let dx = -1; dx <= 1; dx++) {
+    for (let dy = -VISION_RADIUS; dy <= VISION_RADIUS; dy++) {
+      for (let dx = -VISION_RADIUS; dx <= VISION_RADIUS; dx++) {
         const nx = x + dx, ny = y + dy;
         if (nx >= 0 && ny >= 0 && nx < W && ny < H) vis[ny * W + nx] = 1;
       }

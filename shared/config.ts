@@ -9,16 +9,23 @@ export const DISCONNECT_GRACE_MS = 60_000;
 export const MIN_PLAYERS = 2;
 export const MAX_PLAYERS = 12;
 export const MAX_QUEUE = 300;
+/**
+ * How far you see around each owned tile (Chebyshev distance, so diagonals count).
+ * The spec (and generals.io) use 1; playtesters found that too foggy, so we use 2.
+ */
+export const VISION_RADIUS = 2;
 export const FOUNTAIN_GARRISON = 50;
 export const WATER_GARRISON_MIN = 40;
 export const WATER_GARRISON_MAX = 50;
 
 /**
- * Board side length by player count. 2 players get 20x20, which matches generals.io 1v1
- * maps (randomised 18-23 per side); after that the board grows so each player keeps
- * roughly 110-150 tiles of room instead of everyone crowding onto the same map.
+ * Board side length by player count. Playtesters found the earlier sizes (20 for 2 players
+ * up to 35 for 12) too big, so each side is ~15% smaller: 2 players get 18x18 (the low end
+ * of generals.io 1v1 maps, which are randomised 18-23 per side), 4 get 20x20 and 8 get
+ * 25x25, close to the spec's original 20x20 / 26x26. That's roughly 70-100 tiles per
+ * player in bigger games.
  */
-const BOARD_SIZES: Record<number, number> = { 2: 20, 3: 22, 4: 24, 5: 26, 6: 27, 7: 28, 8: 30, 9: 31, 10: 32, 11: 34, 12: 35 };
+const BOARD_SIZES: Record<number, number> = { 2: 18, 3: 19, 4: 20, 5: 22, 6: 23, 7: 24, 8: 25, 9: 26, 10: 27, 11: 28, 12: 29 };
 
 export function boardSize(playerCount: number): number {
   return BOARD_SIZES[Math.min(MAX_PLAYERS, Math.max(MIN_PLAYERS, playerCount))];

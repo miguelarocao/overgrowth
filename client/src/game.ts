@@ -7,6 +7,9 @@ import { sendAmount } from '../../shared/engine';
 import { KINDS, type Building, type Dir, type PlayerId, type QueuedMove, type TileKind, type ViewTile } from '../../shared/types';
 import type { ClientMsg } from '../../shared/protocol';
 
+/** How many of your biggest stacks Space / Tab cycles through. */
+export const CYCLE_SIZE = 5;
+
 type StartedMsg = Extract<ServerMsg, { t: 'started' }>;
 type TickMsg = Extract<ServerMsg, { t: 'tick' }>;
 
@@ -144,6 +147,31 @@ export class ClientGame {
     this.halfNext = false;
     this.selection = to;
     return true;
+  }
+
+  /** Tiles visited by the last Space/Tab presses, biggest first; reset once you select something else. */
+  private cycle: number[] = [];
+
+  /**
+   * Space / Tab: select your biggest stack; pressing again steps through the next biggest
+   * (up to CYCLE_SIZE, then wraps). `back` (Shift) steps the other way once cycling. The order is fixed on
+   * the first press, so stacks growing past each other mid-cycle don't make it ping-pong.
+   */
+  cycleStacks(back = false): number | null {
+    if (!this.alive) return null;
+    const k = this.selection === null ? -1 : this.cycle.indexOf(this.selection);
+    const still = this.cycle.filter((i) => this.tiles[i].owner === this.you && this.tiles[i].stems > 1);
+    if (k < 0 || still.length !== this.cycle.length) {
+      const mine: number[] = [];
+      this.tiles.forEach((t, i) => t.owner === this.you && t.stems > 1 && mine.push(i));
+      mine.sort((a, b) => this.tiles[b].stems - this.tiles[a].stems || a - b);
+      this.cycle = mine.slice(0, CYCLE_SIZE);
+      if (!this.cycle.length) return null;
+      this.select(this.cycle[0]);
+    } else {
+      this.select(this.cycle[(k + (back ? -1 : 1) + this.cycle.length) % this.cycle.length]);
+    }
+    return this.selection;
   }
 
   toggleHalf() {

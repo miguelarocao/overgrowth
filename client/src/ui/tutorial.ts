@@ -68,7 +68,7 @@ export class Tutorial {
         done: (_g, s) => this.maxQueue >= 3 || landOf(this.game) >= s.land + 3
       },
       {
-        html: 'Each step sends <b>all stems but one</b>, leaving 1 behind to claim the tile. The bright vine is the next step. <kbd>E</kbd> undoes a step, <kbd>Q</kbd> clears them all. <b>Claim 4 tiles.</b>',
+        html: 'Each step sends <b>all stems but one</b>, leaving 1 behind to claim the tile. The bright vine is the next step. <kbd>E</kbd> (or <kbd>Backspace</kbd>) undoes a step, <kbd>Q</kbd> clears them all. <b>Claim 4 tiles.</b>',
         done: (g) => landOf(g) >= 4
       },
       {
@@ -88,7 +88,7 @@ export class Tutorial {
         }
       },
       {
-        html: '<b>Camera:</b> <kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> or drag to pan, scroll to zoom, right-drag, <kbd>Shift</kbd>+drag, <kbd>R</kbd> or the ⟲⟳ buttons to rotate (great for peeking behind tall buildings), <kbd>Space</kbd> to grab your biggest stack, <kbd>H</kbd> to jump home, <kbd>C</kbd> for a top-down map. Speeds are in ⚙ Settings.'
+        html: '<b>Camera:</b> <kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> or drag to pan, scroll to zoom, right-drag, <kbd>Shift</kbd>+drag, <kbd>R</kbd> or the ⟲⟳ buttons to rotate (great for peeking behind tall buildings), <kbd>Space</kbd> or <kbd>Tab</kbd> to grab your biggest stack (press again for the next biggest), <kbd>H</kbd> to jump home, <kbd>C</kbd> for a top-down map. Speeds are in ⚙ Settings.'
       },
       {
         html: '<kbd>Z</kbd> makes your next step send <b>half</b> instead, handy for splitting a stack. <kbd>1</kbd>–<kbd>6</kbd> send emotes.'

@@ -56,8 +56,8 @@ room closes sockets that stay silent for 35 s, which starts the usual 60 s recon
 | Click a tile | Select it |
 | Arrow keys | Queue a step from the selection (the selection moves along, so presses draw a path) |
 | Z | Next step sends half instead of all but one |
-| Space | Select your biggest stack (the camera only glides over if it's not already near the middle) |
-| E / Q | Undo last step / clear the queue |
+| Space / Tab | Select your biggest stack; press again to step through your 5 biggest (Shift goes back). The camera only glides over if it's not already near the middle |
+| E or Backspace / Q | Undo last step / clear the queue |
 | WASD, or left-drag | Pan the camera |
 | Right-drag, Shift+drag, sideways trackpad swipe, R / Shift+R or the ⟲ ⟳ buttons | Rotate the board (handy for seeing behind tall buildings; R snaps a quarter turn) |
 | Scroll | Zoom |
@@ -163,9 +163,12 @@ reference/    overgrowth-3d.html
   attacks on a mother plant last, otherwise bigger armies first; ties go in seat order, reversed
   every tick, so priority between any two players alternates every move. (Sources: the
   r/generalsio wiki on move priority, and the Softmax generals.io reimplementation's rules.)
-- **Up to 12 players, and the board scales with them** (instead of the spec's 20x20 / 26x26): 2 → 20x20,
-  3 → 22, 4 → 24, 5 → 26, 6 → 27, 7 → 28, 8 → 30, 9 → 31, 10 → 32, 11 → 34, 12 → 35. Two players match generals.io 1v1 maps (randomised 18–23 per
-  side in high-rank replays); larger games keep roughly 110–150 tiles per player.
+- **Up to 12 players, and the board scales with them**: 2 → 18x18, 3 → 19, 4 → 20, 5 → 22, 6 → 23, 7 → 24,
+  8 → 25, 9 → 26, 10 → 27, 11 → 28, 12 → 29, close to the spec's 20x20 / 26x26. (An earlier version used
+  20 up to 35 per side; playtesters found that too big.) Two players sit at the low end of generals.io 1v1 maps
+  (randomised 18–23 per side); larger games have roughly 70–100 tiles per player.
+- **Vision is 2 tiles** around everything you own (diagonals included), not the spec's 1. Playtesters found
+  1 too foggy. It's `VISION_RADIUS` in `shared/config.ts`.
 - **Map fairness:** each mother gets a "home" water at exactly the same path distance (5–7), and every
   other water is farther from all mothers than that. Maps failing a check retry with a derived seed.
 - **Tabs and reconnects:** a tab keeps its seat token in sessionStorage (survives reloads); a new tab

@@ -52,7 +52,7 @@ export class Hud {
           <div class="queue-head"><span class="eyebrow" id="q-title">Your queue</span><span class="readout" id="readout" aria-live="polite">Queue empty</span></div>
           <div class="line"><span>Next step</span><b id="mode">All but one</b></div>
           <div class="line"><span>Selected stack</span><b id="sel">None</b></div>
-          <div class="keys">Click a tile · <kbd>←↑→↓</kbd> grow · <kbd>Z</kbd> half · <kbd>E</kbd> undo · <kbd>Q</kbd> clear<br><kbd>Space</kbd> biggest stack · <kbd>WASD</kbd>/drag pan · scroll zoom · rotate: right-drag, <kbd>Shift</kbd>+drag, <kbd>R</kbd> or ⟲⟳ · <kbd>H</kbd> home · <kbd>C</kbd> top-down</div>
+          <div class="keys">Click a tile · <kbd>←↑→↓</kbd> grow · <kbd>Z</kbd> half · <kbd>E</kbd>/<kbd>⌫</kbd> undo · <kbd>Q</kbd> clear<br><kbd>Space</kbd>/<kbd>Tab</kbd> cycle biggest stacks · <kbd>WASD</kbd>/drag pan · scroll zoom · rotate: right-drag, <kbd>Shift</kbd>+drag, <kbd>R</kbd> or ⟲⟳ · <kbd>H</kbd> home · <kbd>C</kbd> top-down</div>
         </section>`}
         <div class="panel emotes" aria-label="Emotes" ${replay ? 'hidden' : ''}>
           ${EMOTES.map((e, k) => `<button class="emote" data-e="${k}" title="${e.label} (${k + 1})" aria-label="Emote: ${e.label}">${e.emoji}<kbd>${k + 1}</kbd></button>`).join('')}

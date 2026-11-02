@@ -31,11 +31,7 @@ try {
 
 function go(path: string) {
   history.pushState(null, '', path);
-  // Handy for debugging in devtools (and the browser tests): only your own client state.
-(window as any).og = { get game() { return current?.game ?? null; }, get view() { return view; } };
-
-greetConsole();
-route();
+  route();
 }
 window.addEventListener('popstate', () => route());
 
@@ -198,7 +194,7 @@ function gameScreen(code: string | null): Screen {
         hud.setStatus(status);
         fun = new Fun(game, world!, view!, hud, send);
         app.replaceChildren(hud.root);
-        if (firstStart && m.you !== null && tutorialDone() && !wantTutorial) toast(`${glyph(game.teamOf(m.you) ?? '', 16)} Your mother plant is the tall tree. Click it, then use the arrow keys.`, 6000);
+        if (firstStart && m.you !== null && tutorialDone() && !wantTutorial) toast(`${glyph(game.teamOf(m.you) ?? '', 16)} Your mother plant is the tall tree (👑). It's already selected: use the arrow keys to grow.`, 6000);
         break;
       }
       case 'tick': {
@@ -396,19 +392,18 @@ window.addEventListener('keydown', (e) => {
   } else if (key === 'z') {
     game.toggleHalf();
     sfx.tick(game.halfNext ? 6 : 0);
-  } else if (key === 'e') game.undo();
+  } else if (key === 'e' || key === 'Backspace') {
+    e.preventDefault();
+    game.undo();
+  }
   else if (key === 'q') game.clear();
   else if (/^[1-6]$/.test(key)) current.fun?.emote(Number(key) - 1);
   else if (key === 'Escape') game.select(null);
-  else if (key === ' ' && current.world) {
-    // Space: grab your biggest stack and bring the camera to it.
+  else if ((key === ' ' || key === 'Tab') && current.world) {
+    // Space / Tab: grab your biggest stack; press again for the next biggest. Shift goes back.
     e.preventDefault();
-    let best = -1;
-    game.tiles.forEach((t, i) => {
-      if (t.owner === game.you && t.stems > 1 && (best < 0 || t.stems > game.tiles[best].stems)) best = i;
-    });
-    if (best >= 0 && game.alive) {
-      game.select(best);
+    const best = game.cycleStacks(e.shiftKey);
+    if (best !== null) {
       // Only move the camera if the stack isn't already near the middle of the screen; then glide, don't jump.
       const at = current.world.tilePos(best);
       if (!view!.nearCenter(at)) view!.glideTo(at);

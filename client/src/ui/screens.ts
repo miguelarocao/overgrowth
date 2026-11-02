@@ -34,7 +34,7 @@ export function homeScreen(go: (path: string) => void): HTMLElement {
         <div class="eyebrow" style="margin-bottom:6px">How to play</div>
         <ul class="rules">
           <li><b>Click</b> one of your tiles, then press the <b>arrow keys</b> to send its stems. Each press queues a step and moves on, so you can draw a path. <b>WASD</b> moves the camera.</li>
-          <li>Each step sends all stems but one. <kbd>Z</kbd> sends half on the next step. <kbd>E</kbd> undoes, <kbd>Q</kbd> clears.</li>
+          <li>Each step sends all stems but one. <kbd>Z</kbd> sends half on the next step. <kbd>E</kbd> (or <kbd>Backspace</kbd>) undoes, <kbd>Q</kbd> clears.</li>
           <li>Mother plants and water you own grow 1 stem per turn. All your land grows 1 every 25 turns.</li>
           <li>Capture a rival's mother plant to take everything they have. Last mother standing wins.</li>
         </ul>

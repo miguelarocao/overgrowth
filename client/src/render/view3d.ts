@@ -47,6 +47,10 @@ function saveSettings(s: ViewSettings) {
 
 const CLOCKWISE: Dir[] = ['up', 'right', 'down', 'left'];
 
+/** Mother tree hit boxes as [half-width, bottom, top]: trunk, then the wide canopy (see recipes.tree). */
+const MOTHER_HIT: [number, number, number][] = [[0.6, 0, 1.2], [0.95, 1.05, 2.6]];
+const MOTHER_HIT_TOP: [number, number, number][] = [[0.6, 0, 2.6]];
+
 export interface Floater {
   pos: THREE.Vector3;
   text: string;
@@ -284,15 +288,37 @@ export class View3D {
     return o;
   }
 
-  /** Tile under a screen point, or -1. */
+  /**
+   * Tile under a screen point, or -1. Mother trees are tall and their canopy is about two
+   * tiles wide, so they get their own hit boxes: clicking anywhere on a tree picks its tile
+   * rather than whatever ground is behind it.
+   */
   pick(clientX: number, clientY: number): number {
     if (!this.world) return -1;
     const ndc = new THREE.Vector2((clientX / innerWidth) * 2 - 1, -(clientY / innerHeight) * 2 + 1);
     this.raycaster.setFromCamera(ndc, this.camera);
+    const ray = this.raycaster.ray;
+    const tiles = this.world.game.tiles;
+    let best = -1, bestD = Infinity;
+    for (let i = 0; i < tiles.length; i++) {
+      if (!tiles[i].isMother || !tiles[i].visible) continue;
+      const p = this.world.tilePos(i);
+      // Top-down: only the (slightly enlarged) footprint, so neighbouring tiles stay clickable.
+      for (const [r, y0, y1] of this.settings.topDown ? MOTHER_HIT_TOP : MOTHER_HIT) {
+        this.hitBox.min.set(p.x - r, y0, p.z - r);
+        this.hitBox.max.set(p.x + r, y1, p.z + r);
+        if (!ray.intersectBox(this.hitBox, this.hitPoint)) continue;
+        const d = this.hitPoint.distanceToSquared(ray.origin);
+        if (d < bestD) { bestD = d; best = i; }
+      }
+    }
+    if (best >= 0) return best;
     const hit = new THREE.Vector3();
-    if (!this.raycaster.ray.intersectPlane(this.plane, hit)) return -1;
+    if (!ray.intersectPlane(this.plane, hit)) return -1;
     return this.world.tileAt(hit.x, hit.z);
   }
+  private hitBox = new THREE.Box3();
+  private hitPoint = new THREE.Vector3();
 
   /** Arrow keys follow the screen: snap the camera's heading to the nearest grid axis. */
   gridDir(screen: Dir): Dir {
@@ -455,10 +481,17 @@ export class View3D {
         ctx.lineWidth = t.isMother ? 3.5 : 1.5;
         ctx.strokeRect(x + 1.5, y + 1.5, s - 3, s - 3);
         if (t.isMother) {
-          ctx.font = `${Math.round(s * 0.36)}px system-ui, sans-serif`;
-          ctx.textAlign = 'center';
-          ctx.textBaseline = 'middle';
-          ctx.fillText('👑', cx, y + s * 0.2);
+          // A halo three tiles across, so mothers stand out in the overview.
+          const pulse = this.reduced ? 1 : 0.85 + 0.15 * Math.sin(performance.now() / 350);
+          ctx.globalAlpha = 0.9;
+          ctx.lineWidth = 3;
+          ctx.beginPath();
+          ctx.arc(cx, cy, s * 1.45 * pulse, 0, Math.PI * 2);
+          ctx.stroke();
+          ctx.globalAlpha = 0.18;
+          ctx.fillStyle = c;
+          ctx.fill();
+          ctx.globalAlpha = 1;
         }
       }
       if (t.kind === 'water') {
@@ -502,6 +535,8 @@ export class View3D {
       // Size follows the tile's on-screen size, so far-away neighbours don't pile up.
       let bh = Math.max(11, Math.min(28, it.s * 0.3));
       if (b.small) bh *= 0.78;
+      // Mother plants stay big when zoomed out, so you can find every tree from a distance.
+      if (b.mother) bh = Math.max(18, bh * 1.15);
       const font = Math.max(8, Math.round(bh * 0.66));
       const bw = Math.min(Math.max(bh * 1.55, b.text.length * font * 0.62 + bh * 0.75), Math.max(it.s * 0.94, b.text.length * font * 0.62 + 4));
       const x = it.x - bw / 2, y = it.y - bh / 2;
@@ -517,6 +552,10 @@ export class View3D {
       ctx.fillStyle = b.ghost ? 'rgba(255,255,255,0.9)' : '#FFFFFF';
       ctx.font = `600 ${font}px "IBM Plex Mono", ui-monospace, Menlo, monospace`;
       ctx.fillText(b.text, it.x, it.y + 0.5);
+      if (b.mother) {
+        ctx.font = `${Math.round(bh * 0.95)}px system-ui, sans-serif`;
+        ctx.fillText('👑', it.x, y - bh * 0.5);
+      }
     }
   }
 }

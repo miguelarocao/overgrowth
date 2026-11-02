@@ -18,6 +18,8 @@ export interface Badge {
   ring: string;
   ghost?: boolean;
   small?: boolean;
+  /** A mother plant: drawn bigger, with a crown, so it's easy to spot when zoomed out. */
+  mother?: boolean;
 }
 
 const SOIL = new THREE.Color('#3B3026');
@@ -756,7 +758,7 @@ export class World {
       if (t.isMother) y = 2.45;
       else if (t.owner !== null && t.kind !== 'water') y = R.GROUND + (g.teamOf(t.owner) === 'sun' ? 0.95 : 0.62) * tier(t.stems) + 0.1;
       else if (t.kind !== 'water') y = 0.4;
-      out.push({ pos: this.tilePos(i, y), text: String(t.stems), ring: t.owner !== null ? teamColor(g.teamOf(t.owner)) : 'rgba(255,255,255,0.55)' });
+      out.push({ pos: this.tilePos(i, y), text: String(t.stems), ring: t.owner !== null ? teamColor(g.teamOf(t.owner)) : 'rgba(255,255,255,0.55)', mother: t.isMother });
     }
     this.badges = out;
   }
