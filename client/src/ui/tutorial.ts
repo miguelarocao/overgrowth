@@ -88,7 +88,7 @@ export class Tutorial {
         }
       },
       {
-        html: '<b>Camera:</b> <kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> or drag to pan, scroll to zoom, right-drag or <kbd>R</kbd> to rotate, <kbd>H</kbd> to jump home, <kbd>C</kbd> for a top-down map. Speeds are in ⚙ Settings.'
+        html: '<b>Camera:</b> <kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> or drag to pan, scroll to zoom, right-drag, <kbd>Shift</kbd>+drag, <kbd>R</kbd> or the ⟲⟳ buttons to rotate (great for peeking behind tall buildings), <kbd>H</kbd> to jump home, <kbd>C</kbd> for a top-down map. Speeds are in ⚙ Settings.'
       },
       {
         html: '<kbd>Z</kbd> makes your next step send <b>half</b> instead, handy for splitting a stack. <kbd>1</kbd>–<kbd>6</kbd> send emotes.'

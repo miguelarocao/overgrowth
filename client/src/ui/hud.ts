@@ -51,7 +51,7 @@ export class Hud {
           <div class="queue-head"><span class="eyebrow" id="q-title">Your queue</span><span class="readout" id="readout" aria-live="polite">Queue empty</span></div>
           <div class="line"><span>Next step</span><b id="mode">All but one</b></div>
           <div class="line"><span>Selected stack</span><b id="sel">None</b></div>
-          <div class="keys">Click a tile · <kbd>←↑→↓</kbd> grow · <kbd>Z</kbd> half · <kbd>E</kbd> undo · <kbd>Q</kbd> clear<br><kbd>WASD</kbd>/drag pan · scroll zoom · right-drag or <kbd>R</kbd> rotate · <kbd>H</kbd> home · <kbd>C</kbd> top-down</div>
+          <div class="keys">Click a tile · <kbd>←↑→↓</kbd> grow · <kbd>Z</kbd> half · <kbd>E</kbd> undo · <kbd>Q</kbd> clear<br><kbd>WASD</kbd>/drag pan · scroll zoom · rotate: right-drag, <kbd>Shift</kbd>+drag, <kbd>R</kbd> or ⟲⟳ · <kbd>H</kbd> home · <kbd>C</kbd> top-down</div>
         </section>`}
         <div class="panel emotes" aria-label="Emotes" ${replay ? 'hidden' : ''}>
           ${EMOTES.map((e, k) => `<button class="emote" data-e="${k}" title="${e.label} (${k + 1})" aria-label="Emote: ${e.label}">${e.emoji}<kbd>${k + 1}</kbd></button>`).join('')}
@@ -68,6 +68,10 @@ export class Hud {
         </section>
         <div class="panel controls">
           <label class="switch"><input type="checkbox" id="sound"><span>Sound <kbd>M</kbd></span></label>
+          <span class="rot" role="group" aria-label="Rotate the board">
+            <button class="btn small" id="rot-l" title="Rotate left (Shift+R)" aria-label="Rotate left">⟲</button>
+            <button class="btn small" id="rot-r" title="Rotate right (R). Or right-drag, Shift+drag, or swipe sideways on a trackpad" aria-label="Rotate right">⟳</button>
+          </span>
           <label class="switch"><input type="checkbox" id="top"><span>Top-down <kbd>C</kbd></span></label>
           <button class="btn small" id="gear" aria-expanded="false" aria-controls="settings" title="Camera settings">⚙ Settings</button>
           <button class="btn small" id="help" title="Tutorial">?</button>
@@ -103,6 +107,8 @@ export class Hud {
       gear.setAttribute('aria-expanded', String(!panel.hidden));
     });
     this.q('#help').addEventListener('click', () => act.tutorial?.());
+    this.q('#rot-l').addEventListener('click', () => view.quarterTurn(-1));
+    this.q('#rot-r').addEventListener('click', () => view.quarterTurn(1));
     this.syncControls = sync;
     const sound = this.q<HTMLInputElement>('#sound');
     sound.checked = !sfx.muted;

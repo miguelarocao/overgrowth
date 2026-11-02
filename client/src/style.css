@@ -218,3 +218,6 @@ kbd {
 .tutorial .tut-head { display: flex; justify-content: space-between; align-items: center; }
 .tutorial .row { justify-content: flex-end; }
 @media (max-width: 1180px) { .tutorial { bottom: calc(84px + env(safe-area-inset-bottom, 0px)); } }
+
+.controls .rot { display: inline-flex; gap: 4px; }
+.controls .rot .btn { min-width: 34px; font-size: 16px; padding: 0 8px; }

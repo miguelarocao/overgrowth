@@ -109,6 +109,15 @@ export class View3D {
     this.orthoControls.mouseButtons = { LEFT: THREE.MOUSE.PAN, MIDDLE: THREE.MOUSE.DOLLY, RIGHT: THREE.MOUSE.PAN };
     this.orthoControls.enabled = false;
 
+    // Trackpads: a two-finger sideways swipe spins the board (vertical swipes still zoom).
+    // Registered as a capture listener so it runs before OrbitControls' own wheel zoom.
+    canvas.addEventListener('wheel', (e) => {
+      if (this.settings.topDown || Math.abs(e.deltaX) <= Math.abs(e.deltaY) * 1.2) return;
+      e.preventDefault();
+      e.stopImmediatePropagation();
+      this.rotateBy(-e.deltaX * 0.004 * (this.settings.rotateSpeed / 0.35));
+    }, { capture: true, passive: false });
+
     window.addEventListener('resize', () => this.resize());
     this.resize();
     this.applySettings();
@@ -151,6 +160,14 @@ export class View3D {
     this.orthoControls.target.set(0, 0, 0);
     this.orthoControls.update();
     this.fitOrtho();
+  }
+
+  /** Spin the 3D camera around its target by `rad` (instant). */
+  rotateBy(rad: number) {
+    if (this.settings.topDown) return;
+    const off = this.persp.position.clone().sub(this.controls.target).applyAxisAngle(new THREE.Vector3(0, 1, 0), rad);
+    this.persp.position.copy(this.controls.target).add(off);
+    this.controls.update();
   }
 
   /** Rotate the 3D camera a quarter turn around its target (animated). */

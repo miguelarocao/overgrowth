@@ -37,7 +37,7 @@ Put it behind HTTPS if it's reachable from outside your network (the client swit
 | Z | Next step sends half instead of all but one |
 | E / Q | Undo last step / clear the queue |
 | WASD, or left-drag | Pan the camera |
-| Right-drag, or R / Shift+R | Rotate (R snaps a quarter turn) |
+| Right-drag, Shift+drag, sideways trackpad swipe, R / Shift+R or the ⟲ ⟳ buttons | Rotate the board (handy for seeing behind tall buildings; R snaps a quarter turn) |
 | Scroll | Zoom |
 | C | Toggle the top-down map (team-coloured territory, hatched buildings; fully playable) |
 | H | Jump the camera back to your selection or mother plant |
