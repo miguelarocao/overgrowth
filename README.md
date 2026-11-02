@@ -134,6 +134,9 @@ reference/    overgrowth-3d.html
 - **Spring showers** default to on; the host can switch them off for classic rules. The schedule is
   derived from the seed (deterministic, replayable), but the seed is never sent to clients,
   since it would reveal the map. The server sends the current and upcoming shower instead.
+- **Board size scales with players** (instead of the spec's 20x20 / 26x26): 2 → 20x20, 3 → 22, 4 → 24,
+  5 → 26, 6 → 27, 7 → 28, 8 → 30. Two players match generals.io 1v1 maps (randomised 18–23 per
+  side in high-rank replays); larger games keep roughly 110–150 tiles per player.
 - **Map fairness:** each mother gets a "home" water at exactly the same path distance (5–7), and every
   other water is farther from all mothers than that. Maps failing a check retry with a derived seed.
 - **Tabs and reconnects:** a tab keeps its seat token in sessionStorage (survives reloads); a new tab

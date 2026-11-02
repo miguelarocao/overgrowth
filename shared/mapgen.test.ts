@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { bfsDistances, passable } from './grid';
 import { hashState } from './engine';
 import { generateMap } from './mapgen';
+import { boardSize } from './config';
 
 describe('generateMap', () => {
   it('is fully seeded', () => {
@@ -13,7 +14,7 @@ describe('generateMap', () => {
     it(`builds a valid, fair map for ${n} players`, () => {
       for (let seed = 1; seed <= 12; seed++) {
         const s = generateMap(seed * 101, n);
-        const size = n <= 4 ? 20 : 26;
+        const size = boardSize(n);
         expect(s.width).toBe(size);
         expect(s.height).toBe(size);
         const kinds = s.tiles.map((t) => t.kind);

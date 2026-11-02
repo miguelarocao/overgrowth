@@ -1,4 +1,4 @@
-import { MAX_PLAYERS, PACES, type Pace } from '../../../shared/config';
+import { MAX_PLAYERS, PACES, boardSize, type Pace } from '../../../shared/config';
 import { sfx } from '../audio';
 import type { LobbyPlayer, RoomOptions } from '../../../shared/protocol';
 import { TEAMS, TEAM_BY_KEY } from '../../../shared/teams';
@@ -88,7 +88,7 @@ export function lobbyScreen(msg: { code: string; players: LobbyPlayer[]; host: n
       ${offline ? '<p class="note">Practice against bots in this tab. Nothing is sent to a server.</p>' : `
       <div class="field"><span class="eyebrow">Invite link</span>
         <div class="share"><code>${esc(link)}</code><button class="btn small" id="copy">Copy</button></div></div>`}
-      <div class="field"><span class="eyebrow">Players ${msg.players.length}/${MAX_PLAYERS} · ${msg.players.length <= 4 ? '20×20' : '26×26'} map</span>
+      <div class="field"><span class="eyebrow">Players ${msg.players.length}/${MAX_PLAYERS} · ${boardSize(msg.players.length)}×${boardSize(msg.players.length)} map</span>
         <ul class="players">
           ${msg.players.map((p) => `
             <li class="${p.connected ? '' : 'off'}">${glyph(p.team, 20)}

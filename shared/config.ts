@@ -13,8 +13,15 @@ export const FOUNTAIN_GARRISON = 50;
 export const WATER_GARRISON_MIN = 40;
 export const WATER_GARRISON_MAX = 50;
 
+/**
+ * Board side length by player count. 2 players get 20x20, which matches generals.io 1v1
+ * maps (randomised 18-23 per side); after that the board grows so each player keeps
+ * roughly 110-150 tiles of room instead of everyone crowding onto the same map.
+ */
+const BOARD_SIZES: Record<number, number> = { 2: 20, 3: 22, 4: 24, 5: 26, 6: 27, 7: 28, 8: 30 };
+
 export function boardSize(playerCount: number): number {
-  return playerCount <= 4 ? 20 : 26;
+  return BOARD_SIZES[Math.min(MAX_PLAYERS, Math.max(MIN_PLAYERS, playerCount))];
 }
 
 /** Game pace options (tick length). */
