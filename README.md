@@ -54,8 +54,8 @@ Arrow keys follow the screen: if you orbit the camera 90°, "up" still means up 
 - **Fog of war** keeps the map readable: unexplored ground is darkened, but you can still see
   the streets and buildings. Ownership, stems, mother plants and **hydrants** stay hidden until
   you scout them (the server never sends them). This is like generals.io, where cities hide in
-  the fog as generic obstacles. Hydrants you've seen are remembered. Optional drifting clouds
-  over unexplored areas are in ⚙ Settings (off by default).
+  the fog as generic obstacles. Hydrants you've seen are remembered. Soft clouds drift over
+  unexplored areas (switchable in ⚙ Settings; always off in the top-down map).
 - **Every team looks different**, not just in colour: morning glory grows vine arches, sunflowers
   tall stalks, lavender spiky tufts, roses dense round shrubs, poppies cups on thin stems, daisies
   a flat white carpet, cherry tiny blossom trees, bluebells weeping fountains of bells. Owned

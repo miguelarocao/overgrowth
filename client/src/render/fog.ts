@@ -5,7 +5,7 @@
 // and drift with fractal noise. The clouds can be switched off in settings.
 import * as THREE from 'three';
 
-const CLOUD_Y = 2.8;
+const CLOUD_Y = 2.0; // low enough that clouds line up with the dark area below them
 const BASE = new THREE.Color('#121920');
 
 const vertexShader = /* glsl */ `
@@ -177,8 +177,10 @@ const stormFragment = /* glsl */ `
     // Round-ish billowing outline: radial falloff pushed around by noise.
     float r = length(p) + (n - 0.5) * 0.55;
     float shape = 1.0 - smoothstep(0.55, 0.95, r);
-    float near = smoothstep(7.0, 16.0, distance(cameraPosition, vWorld));
-    float alpha = shape * smoothstep(0.25, 0.6, n + m * 0.35) * uOpacity * near;
+    float near = smoothstep(10.0, 22.0, distance(cameraPosition, vWorld));
+    // Thin in the middle: you look through the cloud at the tiles it's raining on.
+    float rim = mix(0.2, 1.0, smoothstep(0.2, 0.75, length(p)));
+    float alpha = shape * rim * smoothstep(0.3, 0.65, n + m * 0.35) * uOpacity * near;
     vec3 light = mix(vec3(0.80, 0.82, 0.84), vec3(0.42, 0.45, 0.50), uDark);
     vec3 shadow = mix(vec3(0.58, 0.60, 0.63), vec3(0.24, 0.27, 0.31), uDark);
     vec3 col = mix(shadow, light, smoothstep(0.35, 0.8, n + (m - 0.5) * 0.4));
@@ -196,7 +198,7 @@ export class StormCloud {
 
   constructor() {
     const geo = new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI / 2);
-    [0, 0.35, 0.7].forEach((dy, k) => {
+    [0, 0.4].forEach((dy, k) => {
       const mat = new THREE.ShaderMaterial({
         vertexShader,
         fragmentShader: stormFragment,

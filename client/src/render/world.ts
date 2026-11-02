@@ -20,6 +20,8 @@ export interface Badge {
 }
 
 const SOIL = new THREE.Color('#3B3026');
+/** Height of the spring-shower cloud: high enough not to sit over the board. */
+const STORM_Y = 6.2;
 const SMOG_GREY = new THREE.Color('#2A333B'); // unexplored buildings: dimmed to match the shroud
 const ZERO = new THREE.Matrix4().makeScale(0, 0, 0);
 
@@ -470,9 +472,9 @@ export class World {
       return;
     }
     const c = this.tilePos(sh.y * this.W + sh.x).add(V((sh.size - 1) / 2, 0, (sh.size - 1) / 2));
-    this.cloud.position.set(c.x, 4.4, c.z);
+    this.cloud.position.set(c.x, STORM_Y, c.z);
     this.cloud.scale.setScalar(sh.size + 3);
-    this.storm.target = w.now ? 0.7 : 0.4;
+    this.storm.target = w.now ? 0.55 : 0.35;
     this.storm.raining = !!w.now;
     // Outline the exact tiles that will get rained on.
     if (this.rainEdge.userData.size !== sh.size) {
@@ -495,7 +497,7 @@ export class World {
 
   private weatherFrame(now: number, dt: number) {
     this.storm.frame(dt, now, this.cloudsOn);
-    this.cloud.position.y = 4.4 + Math.sin(now * 0.0008) * 0.08;
+    this.cloud.position.y = STORM_Y + Math.sin(now * 0.0008) * 0.08;
     const wetMat = this.wet.material as THREE.MeshStandardMaterial;
     wetMat.opacity += ((this.shower ? 0.28 : 0) - wetMat.opacity) * Math.min(1, dt);
     this.wet.visible = wetMat.opacity > 0.01;
@@ -510,7 +512,7 @@ export class World {
       const seed = k * 12.9898;
       const fx = (Math.sin(seed) * 43758.5453) % 1, fz = (Math.sin(seed * 1.7) * 24634.6345) % 1;
       const ph = ((now * 0.0011 + Math.abs((Math.sin(seed * 3.1) * 9301) % 1)) % 1);
-      m.compose(V(c.x + fx * half, 4.3 - ph * 4.2, c.z + fz * half), new THREE.Quaternion(), V(0.012, 0.22, 0.012));
+      m.compose(V(c.x + fx * half, STORM_Y - 0.3 - ph * (STORM_Y - 0.4), c.z + fz * half), new THREE.Quaternion(), V(0.012, 0.22, 0.012));
       this.rain.setMatrixAt(k, m);
     }
     this.rain.instanceMatrix.needsUpdate = true;

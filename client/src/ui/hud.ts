@@ -86,7 +86,7 @@ export class Hud {
       zoom.value = String(s.zoomSpeed);
       drag.checked = s.dragPans;
       map.checked = s.mapLayer;
-      clouds.checked = s.fogClouds;
+      clouds.checked = s.driftClouds;
     };
     sync();
     top.addEventListener('change', () => { view.update({ topDown: top.checked }); sync(); });
@@ -95,7 +95,7 @@ export class Hud {
     zoom.addEventListener('input', () => view.update({ zoomSpeed: Number(zoom.value) }));
     drag.addEventListener('change', () => view.update({ dragPans: drag.checked }));
     map.addEventListener('change', () => view.update({ mapLayer: map.checked }));
-    clouds.addEventListener('change', () => view.update({ fogClouds: clouds.checked }));
+    clouds.addEventListener('change', () => view.update({ driftClouds: clouds.checked }));
     this.q('#s-reset').addEventListener('click', () => { view.update({ ...DEFAULT_VIEW, topDown: view.settings.topDown }); sync(); });
     const gear = this.q('#gear'), panel = this.q('#settings');
     gear.addEventListener('click', () => {
