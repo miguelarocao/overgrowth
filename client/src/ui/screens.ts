@@ -70,6 +70,9 @@ export interface LobbyActions {
   leave: () => void;
 }
 
+/** "Fill with bots" tops up to the next of 4, 8 or 12 players. */
+const fillTarget = (n: number) => (n < 4 ? 4 : n < 8 ? 8 : MAX_PLAYERS);
+
 const PACE_LABEL: Record<Pace, string> = { relaxed: 'Relaxed', brisk: 'Brisk', frantic: 'Frantic' };
 
 export function lobbyScreen(msg: { code: string; players: LobbyPlayer[]; host: number | null; you: number | null; options: RoomOptions }, offline: boolean, act: LobbyActions): HTMLElement {
@@ -124,7 +127,7 @@ export function lobbyScreen(msg: { code: string; players: LobbyPlayer[]; host: n
       ${isHost ? `
       <div class="row">
         <button class="btn grow" id="bot" ${full ? 'disabled' : ''}>Add bot</button>
-        <button class="btn grow" id="fill" ${full ? 'disabled' : ''}>Fill to ${msg.players.length < 4 ? 4 : 8} with bots</button>
+        <button class="btn grow" id="fill" ${full ? 'disabled' : ''}>Fill to ${fillTarget(msg.players.length)} with bots</button>
         <button class="btn primary grow" id="start" ${msg.players.length < 2 ? 'disabled' : ''}>Start game</button>
       </div>
       ${msg.players.length < 2 ? '<p class="note">Need at least 2 players. Share the link or add a bot.</p>' : ''}` : '<p class="note">Waiting for the host to start…</p>'}
@@ -150,7 +153,7 @@ export function lobbyScreen(msg: { code: string; players: LobbyPlayer[]; host: n
   root.querySelectorAll<HTMLButtonElement>('[data-pace]').forEach((b) => b.addEventListener('click', () => act.send({ t: 'setOptions', pace: b.dataset.pace })));
   root.querySelector('#bot')?.addEventListener('click', () => act.send({ t: 'addBot' }));
   root.querySelector('#fill')?.addEventListener('click', () => {
-    for (let k = msg.players.length; k < (msg.players.length < 4 ? 4 : MAX_PLAYERS); k++) act.send({ t: 'addBot' });
+    for (let k = msg.players.length; k < fillTarget(msg.players.length); k++) act.send({ t: 'addBot' });
   });
   root.querySelector('#start')?.addEventListener('click', () => act.send({ t: 'start' }));
   return root;

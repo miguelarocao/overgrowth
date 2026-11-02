@@ -152,7 +152,7 @@ kbd {
 }
 .weather b { font-weight: 600; color: #CFE3EA; }
 @media (max-width: 1180px) {
-  .weather { left: max(16px, env(safe-area-inset-left, 0px)); transform: none; top: calc(84px + env(safe-area-inset-top, 0px)); max-width: min(340px, calc(100vw - 32px)); text-align: left; }
+  .weather { left: max(16px, env(safe-area-inset-left, 0px)); transform: none; top: calc(106px + env(safe-area-inset-top, 0px)); max-width: min(340px, calc(100vw - 32px)); text-align: left; }
 }
 .emotes { display: flex; gap: 2px; padding: 4px; }
 .emote {

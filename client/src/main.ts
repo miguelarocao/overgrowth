@@ -409,7 +409,10 @@ window.addEventListener('keydown', (e) => {
     });
     if (best >= 0 && game.alive) {
       game.select(best);
-      view!.focus(current.world.tilePos(best));
+      // Only move the camera if the stack isn't already near the middle of the screen; then glide, don't jump.
+      const at = current.world.tilePos(best);
+      if (!view!.nearCenter(at)) view!.glideTo(at);
+      current.world.ping(best, performance.now());
       sfx.select();
     }
   }

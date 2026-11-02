@@ -22,6 +22,14 @@ export function glyph(team: string, size = 18): string {
       return `<svg ${s}><g fill="${c}"><circle cx="7" cy="7" r="3.6"/><circle cx="13.5" cy="8" r="3.6"/><circle cx="10" cy="13.5" r="3.6"/></g></svg>`;
     case 'bell':
       return `<svg ${s}><path d="M10 1 V5" stroke="#4E7A3E" stroke-width="1.4"/><path d="M5 16 Q5 6 10 5 Q15 6 15 16 L17 18 H3 Z" fill="${c}"/></svg>`;
+    case 'drop':
+      return `<svg ${s}><path d="M10 1 V4" stroke="#5E7A3E" stroke-width="1.2"/><path d="M10 4 Q15 8 12.5 12 L7.5 12 Q5 8 10 4 Z" fill="${c}"/><path d="M6.5 12 H13.5 L12 18 H8 Z" fill="#6A2C91"/></svg>`;
+    case 'mophead':
+      return `<svg ${s}><g fill="${c}">${[[6, 7], [10, 5], [14, 7], [5, 11], [10, 10], [15, 11], [7, 15], [13, 15], [10, 14.5]].map(([x, y]) => `<circle cx="${x}" cy="${y}" r="2.6"/>`).join('')}</g></svg>`;
+    case 'pompom':
+      return `<svg ${s}><rect x="9.3" y="11" width="1.4" height="8" fill="#5F8D41"/><ellipse cx="10" cy="9" rx="8" ry="3.4" fill="${c}"/><ellipse cx="10" cy="8.3" rx="5" ry="2.2" fill="#9CBF22"/><circle cx="10" cy="7.8" r="1.6" fill="#E8782A"/></svg>`;
+    case 'dahlia':
+      return `<svg ${s}><g fill="${c}">${[0, 30, 60, 90, 120, 150].map((a) => `<ellipse cx="10" cy="3" rx="1.6" ry="3.2" transform="rotate(${a} 10 10)"/><ellipse cx="10" cy="3" rx="1.6" ry="3.2" transform="rotate(${a + 180} 10 10)"/>`).join('')}</g><circle cx="10" cy="10" r="3.4" fill="#B4436F"/><circle cx="10" cy="10" r="1.6" fill="#5E1533"/></svg>`;
     default:
       return `<svg ${s}><circle cx="10" cy="10" r="7" fill="${c}"/></svg>`;
   }

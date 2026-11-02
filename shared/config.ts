@@ -7,7 +7,7 @@ export const CORE_GROWTH_TICKS = TICKS_PER_TURN;
 export const LAND_GROWTH_TICKS = 25 * TICKS_PER_TURN;
 export const DISCONNECT_GRACE_MS = 60_000;
 export const MIN_PLAYERS = 2;
-export const MAX_PLAYERS = 8;
+export const MAX_PLAYERS = 12;
 export const MAX_QUEUE = 300;
 export const FOUNTAIN_GARRISON = 50;
 export const WATER_GARRISON_MIN = 40;
@@ -18,7 +18,7 @@ export const WATER_GARRISON_MAX = 50;
  * maps (randomised 18-23 per side); after that the board grows so each player keeps
  * roughly 110-150 tiles of room instead of everyone crowding onto the same map.
  */
-const BOARD_SIZES: Record<number, number> = { 2: 20, 3: 22, 4: 24, 5: 26, 6: 27, 7: 28, 8: 30 };
+const BOARD_SIZES: Record<number, number> = { 2: 20, 3: 22, 4: 24, 5: 26, 6: 27, 7: 28, 8: 30, 9: 31, 10: 32, 11: 34, 12: 35 };
 
 export function boardSize(playerCount: number): number {
   return BOARD_SIZES[Math.min(MAX_PLAYERS, Math.max(MIN_PLAYERS, playerCount))];

@@ -19,7 +19,12 @@ export const TEAMS: readonly TeamDef[] = [
   { key: 'poppy', name: 'Poppy', color: '#F07A2A', shape: 'cup', core: false },
   { key: 'daisy', name: 'Daisy', color: '#F4F1E8', shape: 'flat', core: false },
   { key: 'cherry', name: 'Cherry blossom', color: '#F5A7C7', shape: 'cluster', core: false },
-  { key: 'bell', name: 'Bluebell', color: '#4B3FC9', shape: 'bell', core: false }
+  { key: 'bell', name: 'Bluebell', color: '#4B3FC9', shape: 'bell', core: false },
+  // Players 9 to 12: new hues (magenta, teal, lime, wine) and new silhouettes.
+  { key: 'fuchsia', name: 'Fuchsia', color: '#D6339E', shape: 'drop', core: false },
+  { key: 'hydrangea', name: 'Hydrangea', color: '#2CB8B0', shape: 'mophead', core: false },
+  { key: 'zinnia', name: 'Zinnia', color: '#B5D334', shape: 'pompom', core: false },
+  { key: 'dahlia', name: 'Dahlia', color: '#9B2D5A', shape: 'dahlia', core: false }
 ];
 
 export const TEAM_BY_KEY: Record<string, TeamDef> = Object.fromEntries(TEAMS.map((t) => [t.key, t]));

@@ -80,6 +80,7 @@ export class View3D {
   /** Keys currently held for panning (w, a, s, d). */
   readonly held = new Set<string>();
   private spin: { from: number; to: number; t0: number; done: number } | null = null;
+  private glide: { from: THREE.Vector3; to: THREE.Vector3; t0: number; done: THREE.Vector3 } | null = null;
   private lastFrame = 0;
 
   constructor(readonly canvas: HTMLCanvasElement, overlay: HTMLCanvasElement) {
@@ -176,6 +177,25 @@ export class View3D {
     const az = this.controls.getAzimuthalAngle();
     const snapped = Math.round(az / (Math.PI / 2)) * (Math.PI / 2);
     this.spin = { from: 0, to: snapped + dir * (Math.PI / 2) - az, t0: performance.now(), done: 0 };
+  }
+
+  /** Is world point `p` inside the central part of the screen (|x|, |y| < frac in screen space)? */
+  nearCenter(p: THREE.Vector3, frac = 0.55): boolean {
+    const v = p.clone().project(this.camera);
+    return v.z < 1 && Math.abs(v.x) < frac && Math.abs(v.y) < frac;
+  }
+
+  /** Smoothly pan (no rotation, no zoom change) so `p` ends up in the middle of the screen. */
+  glideTo(p: THREE.Vector3) {
+    const c = this.settings.topDown ? this.orthoControls : this.controls;
+    const to = new THREE.Vector3(p.x, c.target.y, p.z);
+    if (this.reduced) {
+      const d = to.clone().sub(c.target);
+      c.target.add(d);
+      c.object.position.add(d);
+      return;
+    }
+    this.glide = { from: c.target.clone(), to, t0: performance.now(), done: new THREE.Vector3() };
   }
 
   /** Move the camera so `p` is in the middle of the screen. */
@@ -312,6 +332,17 @@ export class View3D {
     this.lastFrame = now;
     const c = this.settings.topDown ? this.orthoControls : this.controls;
     this.keyPan(c, dt);
+    if (this.glide) {
+      const g = this.glide;
+      const p = Math.min(1, (now - g.t0) / 420);
+      const eased = 1 - Math.pow(1 - p, 3);
+      const want = g.to.clone().sub(g.from).multiplyScalar(eased);
+      const step = want.clone().sub(g.done);
+      c.target.add(step);
+      c.object.position.add(step);
+      g.done.copy(want);
+      if (p >= 1) this.glide = null;
+    }
     if (this.spin && !this.settings.topDown) {
       const p = Math.min(1, (now - this.spin.t0) / 320);
       const eased = 1 - Math.pow(1 - p, 3);

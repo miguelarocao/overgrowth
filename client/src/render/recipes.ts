@@ -43,6 +43,28 @@ function bloom(rc: Recipe, team: string, pos: THREE.Vector3, dir: THREE.Vector3,
         rc.add('ball', pos.clone().add(o), randQuat(r), 0.032 * s, pick(r, ['#F5A7C7', '#F8C0D6', '#EE93B8']));
       }
       break;
+    case 'fuchsia': {
+      // A dangling two-tone drop: magenta sepals over a purple skirt.
+      const p = pos.clone().add(V(0, -0.045 * s, 0));
+      rc.add('stem', pos.clone().add(V(0, -0.015 * s, 0)), null, V(0.005 * s, 0.035 * s, 0.005 * s), '#5E7A3E');
+      rc.add('bud', p, null, V(0.03 * s, 0.06 * s, 0.03 * s), pick(r, ['#D6339E', '#E04AAE']));
+      rc.add('bell', p.clone().add(V(0, -0.05 * s, 0)), null, V(0.028 * s, 0.04 * s, 0.028 * s), '#6A2C91');
+      break;
+    }
+    case 'hydrangea':
+      // A little mophead: a tight cluster of florets.
+      for (let k = 0; k < 4; k++) rc.add('ball', pos.clone().add(randDir(r).multiplyScalar(0.035 * s)), randQuat(r), 0.034 * s, pick(r, ['#2CB8B0', '#3FCAC0', '#7FDCD4']));
+      break;
+    case 'zinnia':
+      rc.add('disc', pos, qFrom(dir), V(0.085 * s, 0.05 * s, 0.085 * s), pick(r, ['#B5D334', '#C3DE4E']));
+      rc.add('disc', pos.clone().addScaledVector(dir, 0.015 * s), qFrom(dir), V(0.055 * s, 0.05 * s, 0.055 * s), '#9CBF22');
+      rc.add('ball', pos.clone().addScaledVector(dir, 0.03 * s), null, 0.022 * s, '#E8782A');
+      break;
+    case 'dahlia':
+      rc.add('disc', pos, qFrom(dir), V(0.1 * s, 0.05 * s, 0.1 * s), pick(r, ['#9B2D5A', '#A8366A']));
+      rc.add('disc', pos.clone().addScaledVector(dir, 0.02 * s), qFrom(dir), V(0.07 * s, 0.06 * s, 0.07 * s), '#B4436F');
+      rc.add('ball', pos.clone().addScaledVector(dir, 0.04 * s), null, 0.025 * s, '#5E1533');
+      break;
     case 'bell': {
       // Drooping bells: open side down, hanging just below the surface point.
       const p = pos.clone().add(V(0, -0.035 * s, 0));
@@ -195,6 +217,49 @@ export function bush(team: string, r: Rng): Recipe {
       }
       return rc;
     }
+    case 'fuchsia': {
+      // A shrub with arching shoots, each ending in a dangling drop.
+      const leaves = mound(rc, r, 7, [0.11, 0.16], 0.18, ['#3F6B34', '#4A7A3C', '#35602C'], 0.9, 0.08);
+      for (let k = 0; k < 10; k++) {
+        const L = pick(r, leaves), a = r() * Math.PI * 2;
+        const tip = L.p.clone().add(V(Math.cos(a) * (L.rad + 0.08), 0.02 + r() * 0.06, Math.sin(a) * (L.rad + 0.08)));
+        stemBetween(rc, L.p, tip, 0.006, '#5E7A3E');
+        bloom(rc, 'fuchsia', tip, V(0, -1, 0), r, 1.35);
+      }
+      return rc;
+    }
+    case 'hydrangea': {
+      // A low leafy dome topped with three big round mopheads.
+      mound(rc, r, 8, [0.13, 0.18], 0.24, GREENS, 0.8);
+      for (let k = 0; k < 3; k++) {
+        const a = (k / 3) * Math.PI * 2 + r() * 0.6, d = 0.12 + r() * 0.06;
+        const c = V(Math.cos(a) * d, 0.32 + r() * 0.08, Math.sin(a) * d);
+        for (let j = 0; j < 9; j++) rc.add('ball', c.clone().add(randDir(r, -0.3, 1).multiplyScalar(0.085 + r() * 0.04)), randQuat(r), 0.055, pick(r, ['#2CB8B0', '#3FCAC0', '#7FDCD4', '#23A39C']));
+      }
+      return rc;
+    }
+    case 'zinnia': {
+      // Stiff, upright stems each holding a flat bloom facing the sky.
+      mound(rc, r, 5, [0.06, 0.09], 0.22, GREENS, 0.6);
+      for (let k = 0; k < 6; k++) {
+        const a = r() * Math.PI * 2, d = 0.05 + Math.sqrt(r()) * 0.26;
+        const base = V(Math.cos(a) * d, 0, Math.sin(a) * d);
+        const h = 0.36 + r() * 0.24;
+        rc.add('stem', base.clone().add(V(0, h / 2, 0)), null, V(0.012, h, 0.012), '#5F8D41');
+        rc.add('leafLo', base.clone().add(V(0.04, h * 0.45, 0)), qFrom(V(1, 0.3, 0)), V(0.06, 0.02, 0.035), '#57984A');
+        bloom(rc, 'zinnia', base.clone().add(V(0, h, 0)), V(0, 1, 0), r, 1.5);
+      }
+      return rc;
+    }
+    case 'dahlia': {
+      // A medium shrub carrying a few big layered blooms.
+      const leaves = mound(rc, r, 7, [0.12, 0.17], 0.2, ['#3F7F38', '#356B30'], 1, 0.05);
+      for (let k = 0; k < 5; k++) {
+        const L = pick(r, leaves), dir = randDir(r, 0.35, 1);
+        bloom(rc, 'dahlia', L.p.clone().addScaledVector(dir, L.rad * 0.95), dir, r, 1.7);
+      }
+      return rc;
+    }
   }
   // Fallback: a plain leafy mound with team blooms.
   const leaves = mound(rc, r, 9, [0.15, 0.24], 0.2, GREENS);
@@ -232,7 +297,7 @@ export function tree(team: string, r: Rng): Recipe {
     rc.add('leaf', p, null, rad, team === 'lav' ? pick(r, ['#5F7D52', '#6E8B5E', '#4F6E46']) : leafGreen(team, r));
     leaves.push({ p, rad });
   }
-  const count = ({ glory: 46, sun: 28, lav: 38, rose: 40, poppy: 34, daisy: 44, cherry: 40, bell: 40 } as Record<string, number>)[team] ?? 36;
+  const count = ({ glory: 46, sun: 28, lav: 38, rose: 40, poppy: 34, daisy: 44, cherry: 40, bell: 40, fuchsia: 36, hydrangea: 30, zinnia: 34, dahlia: 28 } as Record<string, number>)[team] ?? 36;
   for (let k = 0; k < count; k++) {
     const L = pick(r, leaves);
     if (team === 'lav') {
@@ -336,15 +401,15 @@ export function ivy(team: string, anchors: { p: THREE.Vector3; n: THREE.Vector3;
   const n = Math.round(walls.length * coverage);
   for (let k = 0; k < n; k++) {
     const a = walls[k];
-    const s = 0.1 + r() * 0.07;
-    rc.add('leafLo', a.p.clone().addScaledVector(a.n, 0.04), randQuat(r), V(s, s * 1.2, s * 0.55), pick(r, GREENS));
-    if (k % 2 === 1) bloom(rc, team, a.p.clone().addScaledVector(a.n, 0.1), a.n.clone().add(V(0, 0.3, 0)).normalize(), r, 1.1);
+    const s = 0.15 + r() * 0.08;
+    rc.add('leafLo', a.p.clone().addScaledVector(a.n, 0.05), randQuat(r), V(s, s * 1.25, s * 0.5), pick(r, GREENS));
+    if (k % 3 === 1) bloom(rc, team, a.p.clone().addScaledVector(a.n, 0.1), a.n.clone().add(V(0, 0.3, 0)).normalize(), r, 1.25);
   }
   if (coverage >= 1) {
     // A roof garden once the building is surrounded.
     const roofs = anchors.filter((a) => a.roof);
     roofs.forEach((a, k) => {
-      if (k % 2 === 0) rc.merge(bush(team, r).scaled(0.45).transform(r() * 6, a.p));
+      if (k === 0) rc.merge(bush(team, r).scaled(0.5).transform(r() * 6, a.p));
       else rc.add('leafLo', a.p.clone().add(V(0, 0.05, 0)), randQuat(r), 0.1, pick(r, GREENS));
     });
   }

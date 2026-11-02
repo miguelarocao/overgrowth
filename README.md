@@ -35,7 +35,7 @@ Put it behind HTTPS if it's reachable from outside your network (the client swit
 | Click a tile | Select it |
 | Arrow keys | Queue a step from the selection (the selection moves along, so presses draw a path) |
 | Z | Next step sends half instead of all but one |
-| Space | Select your biggest stack (and move the camera to it) |
+| Space | Select your biggest stack (the camera only glides over if it's not already near the middle) |
 | E / Q | Undo last step / clear the queue |
 | WASD, or left-drag | Pan the camera |
 | Right-drag, Shift+drag, sideways trackpad swipe, R / Shift+R or the ⟲ ⟳ buttons | Rotate the board (handy for seeing behind tall buildings; R snaps a quarter turn) |
@@ -59,7 +59,8 @@ Arrow keys follow the screen: if you orbit the camera 90°, "up" still means up 
   unexplored areas (switchable in ⚙ Settings; always off in the top-down map).
 - **Every team looks different**, not just in colour: morning glory grows vine arches, sunflowers
   tall stalks, lavender spiky tufts, roses dense round shrubs, poppies cups on thin stems, daisies
-  a flat white carpet, cherry tiny blossom trees, bluebells weeping fountains of bells. Owned
+  a flat white carpet, cherry tiny blossom trees, bluebells weeping fountains of bells, fuchsias dangling drops,
+  hydrangeas big round mopheads, zinnias flat blooms on stiff stems, dahlias big layered blooms. Owned
   soil is tinted with the team colour, and plants get bigger as stacks grow.
 - **Overgrowth**: captured hydrants flourish into ponds with lily pads, reeds and vines up the
   hydrant. Ivy creeps up any building as one player surrounds it; fully surrounded, it's covered
@@ -139,8 +140,8 @@ reference/    overgrowth-3d.html
   attacks on a mother plant last, otherwise bigger armies first; ties go in seat order, reversed
   every tick, so priority between any two players alternates every move. (Sources: the
   r/generalsio wiki on move priority, and the Softmax generals.io reimplementation's rules.)
-- **Board size scales with players** (instead of the spec's 20x20 / 26x26): 2 → 20x20, 3 → 22, 4 → 24,
-  5 → 26, 6 → 27, 7 → 28, 8 → 30. Two players match generals.io 1v1 maps (randomised 18–23 per
+- **Up to 12 players, and the board scales with them** (instead of the spec's 20x20 / 26x26): 2 → 20x20,
+  3 → 22, 4 → 24, 5 → 26, 6 → 27, 7 → 28, 8 → 30, 9 → 31, 10 → 32, 11 → 34, 12 → 35. Two players match generals.io 1v1 maps (randomised 18–23 per
   side in high-rank replays); larger games keep roughly 110–150 tiles per player.
 - **Map fairness:** each mother gets a "home" water at exactly the same path distance (5–7), and every
   other water is farther from all mothers than that. Maps failing a check retry with a derived seed.
@@ -163,7 +164,7 @@ npm run sim -- 300 # headless bot-vs-bot games: crashes, unfinished games, lengt
 3. Multiplayer — done: rooms by link, lobby, teams, host start, bots, spectators, reconnect, 60 s grace.
 4. 3D renderer — done: ported kit, top-down map mode, crisp counts, queue vines, fog of war with last-seen tint, sprouts, grow-in and petal bursts. Tilt-shift was removed after playtesting.
 5. Polish — end screen, awards, replays, synthesized sound, emotes and juice done.
-6. Extras — teams 5–8 are in (Poppy, Daisy, Cherry blossom, Bluebell) and need a playtest for distinctness. Rule variants: spring showers and pace.
+6. Extras — 12 teams (Poppy, Daisy, Cherry blossom, Bluebell, Fuchsia, Hydrangea, Zinnia, Dahlia added) and up to 12 players; they need a playtest for distinctness. Rule variants: spring showers and pace.
 
 Known gaps: bots are simple (fine for filling seats; games with 5–8 bots run long), frame rate
 has not been measured on real laptop GPUs, and no Cloudflare Durable Objects adapter

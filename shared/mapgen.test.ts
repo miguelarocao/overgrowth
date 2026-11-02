@@ -10,7 +10,7 @@ describe('generateMap', () => {
     expect(hashState(generateMap(42, 4))).not.toBe(hashState(generateMap(43, 4)));
   });
 
-  for (const n of [2, 3, 4, 5, 6, 7, 8]) {
+  for (const n of [2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]) {
     it(`builds a valid, fair map for ${n} players`, () => {
       for (let seed = 1; seed <= 12; seed++) {
         const s = generateMap(seed * 101, n);

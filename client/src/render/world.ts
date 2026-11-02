@@ -4,6 +4,7 @@
 import * as THREE from 'three';
 import { isStreetCoord, neighbors4 } from '../../../shared/grid';
 import { TEAMS, teamColor } from '../../../shared/teams';
+import { MAX_PLAYERS } from '../../../shared/config';
 import type { ClientGame } from '../game';
 import { ChunkPool, type Inst, type Kind, KINDS, Recipe, rngFrom, StaticBatch, V, pick } from './kit';
 import * as R from './recipes';
@@ -147,6 +148,7 @@ export class World {
   private buildingHidden: boolean[];
   private growing = new Map<number, { t0: number; scale: number; origin: THREE.Vector3 }>();
   private pulsing = new Map<number, { t0: number; scale: number; origin: THREE.Vector3 }>();
+  private pings: { g: THREE.Group; t0: number }[] = [];
   readonly selection = squareOutline('#FFFFFF', 0.9);
   readonly hover = squareOutline('#FFFFFF', 0.3, 0.35);
   readonly billboards: THREE.Mesh[] = [];
@@ -218,7 +220,7 @@ export class World {
 
     // Animated hydrant spray: a jet arcing out of the side and a geyser out of the top.
     for (let i = 0; i < N; i++) if (game.tiles[i].kind === 'water' && i !== game.fountain) this.jetTiles.push(i);
-    this.jets = new THREE.InstancedMesh(KINDS.ball.geo, new THREE.MeshStandardMaterial({ color: '#fff', roughness: 0.2, metalness: 0.1, emissive: '#3A5560', emissiveIntensity: 0.5 }), (this.jetTiles.length + 8) * 26); // +8: captured mother plants become water
+    this.jets = new THREE.InstancedMesh(KINDS.ball.geo, new THREE.MeshStandardMaterial({ color: '#fff', roughness: 0.2, metalness: 0.1, emissive: '#3A5560', emissiveIntensity: 0.5 }), (this.jetTiles.length + MAX_PLAYERS) * 26); // captured mother plants become water
     this.jets.frustumCulled = false;
     this.jets.setColorAt(0, new THREE.Color('#CFE3EA'));
     this.scene.add(this.jets);
@@ -367,7 +369,7 @@ export class World {
         { n: V(-1, 0, 0), len: hz * 2, at: (u: number) => V(cx - hx, 0, cz + u * hz) }
       ];
       const total = faces.reduce((a, f) => a + f.len, 0);
-      const count = Math.round(Math.min(150, 20 + total * 11 * Math.min(1.6, height)));
+      const count = Math.round(Math.min(60, 10 + total * 4.5 * Math.min(1.5, height))); // fewer, bigger leaves: ivy on ~100 buildings adds up
       const anchors: BuildingIvy['anchors'] = [];
       for (let j = 0; j < count; j++) {
         let pickLen = r() * total, face = faces[0];
@@ -429,6 +431,16 @@ export class World {
   private cloudsOn = true;
 
   /** Fog-of-war clouds, and the shower cloud (hidden in top-down, where the map matters most). */
+  /** A quick expanding ring on a tile, to draw the eye to it (e.g. Space selected it). */
+  ping(i: number, now: number) {
+    const g = squareOutline('#FFFFFF', 1.2, 0.9);
+    g.visible = true;
+    const p = this.tilePos(i);
+    g.position.set(p.x, 0.15, p.z);
+    this.scene.add(g);
+    this.pings.push({ g, t0: now });
+  }
+
   /**
    * Round growth: every bush owned by `player` (everyone's, if null) does a quick bloom
    * bounce, rippling outward a little so the board visibly "breathes". Returns how many pulsed.
@@ -752,6 +764,18 @@ export class World {
   frame(now: number) {
     const dt = this.lastFrame ? Math.min(0.05, (now - this.lastFrame) / 1000) : 0;
     this.lastFrame = now;
+    this.pings = this.pings.filter((pg) => {
+      const p = (now - pg.t0) / 550;
+      if (p >= 1) {
+        this.scene.remove(pg.g);
+        ((pg.g.children[0] as THREE.Mesh).material as THREE.Material).dispose();
+        return false;
+      }
+      pg.g.scale.setScalar(1 + p * 1.6);
+      const m = (pg.g.children[0] as THREE.Mesh).material as THREE.MeshStandardMaterial;
+      m.opacity = 0.9 * (1 - p);
+      return true;
+    });
     for (const [i, pu] of this.pulsing) {
       const p = Math.min(1, (now - pu.t0) / 520);
       const team = this.bushTeam[i];
