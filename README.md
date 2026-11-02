@@ -135,6 +135,10 @@ reference/    overgrowth-3d.html
 - **Spring showers** default to on; the host can switch them off for classic rules. The schedule is
   derived from the seed (deterministic, replayable), but the seed is never sent to clients,
   since it would reveal the map. The server sends the current and upcoming shower instead.
+- **Move order within a tick follows generals.io:** moves onto your own land resolve first,
+  attacks on a mother plant last, otherwise bigger armies first; ties go in seat order, reversed
+  every tick, so priority between any two players alternates every move. (Sources: the
+  r/generalsio wiki on move priority, and the Softmax generals.io reimplementation's rules.)
 - **Board size scales with players** (instead of the spec's 20x20 / 26x26): 2 → 20x20, 3 → 22, 4 → 24,
   5 → 26, 6 → 27, 7 → 28, 8 → 30. Two players match generals.io 1v1 maps (randomised 18–23 per
   side in high-rank replays); larger games keep roughly 110–150 tiles per player.

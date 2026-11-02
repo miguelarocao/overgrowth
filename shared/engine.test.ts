@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { gameResult, hashState, isMoveValid, priorityOrder, step, stepDetailed, surrender } from './engine';
+import { gameResult, hashState, isMoveValid, moveOrder, step, stepDetailed, surrender } from './engine';
 import type { Move } from './types';
 import { makeState } from './testutil';
 
@@ -64,8 +64,11 @@ describe('moving and combat', () => {
   });
 
   it('applies moves one at a time in rotating priority order', () => {
-    expect(priorityOrder(3, 0)).toEqual([0, 1, 2]);
-    expect(priorityOrder(3, 1)).toEqual([1, 2, 0]);
+    // Equal armies of equal kind: seat order, reversed on odd ticks.
+    const eq = makeState(['0.1.2'], 3, { 0: 5, 2: 5, 4: 5 });
+    const all = new Map([[0, mv(0, 'right')], [1, mv(2, 'right')], [2, mv(4, 'left')]]);
+    expect(moveOrder(eq, all, 2)).toEqual([0, 1, 2]);
+    expect(moveOrder(eq, all, 3)).toEqual([2, 1, 0]);
     // Both players attack the same neutral tile; whoever goes first takes it, the other attacks them.
     const s = makeState(['0.1'], 2, { 0: 10, 2: 10 });
     s.tick = 2; // stepping to tick 3: order [1, 0]
@@ -76,6 +79,40 @@ describe('moving and combat', () => {
     s.tick = 3; // stepping to tick 4: order [0, 1]
     const n2 = step(s, moves);
     expect(n2.tiles[1]).toMatchObject({ owner: 0, stems: 0 });
+  });
+});
+
+describe('move order (generals.io rules)', () => {
+  it('reinforcements onto your own land land before attacks: a mother topped up this tick survives', () => {
+    // Player 0's mother (5) with a 7 behind it; player 1 attacks the mother with 10 (sends 9).
+    const s = makeState(['0A1'], 2, { 0: 7, 1: 5, 2: 10 });
+    s.tick = 2; // odd tick next: plain seat order would let player 1 go first
+    const r = stepDetailed(s, new Map([[0, mv(0, 'right')], [1, mv(2, 'left')]]));
+    expect(r.eliminations).toEqual([]);
+    expect(r.state.tiles[1]).toMatchObject({ owner: 0, isMother: true, stems: 2 }); // 5 + 6 - 9
+  });
+
+  it('larger armies move first: a big army walking away leaves its tile open to a chaser', () => {
+    // Player 0's 20-stack leaves tile 1 heading right; player 1's 10-stack attacks tile 1 from the left.
+    const s = makeState(['10.'], 2, { 0: 10, 1: 20 });
+    s.tick = 2;
+    const r = stepDetailed(s, new Map([[0, mv(1, 'right')], [1, mv(0, 'right')]]));
+    expect(r.state.tiles[2]).toMatchObject({ owner: 0, stems: 19 });
+    expect(r.state.tiles[1]).toMatchObject({ owner: 1, stems: 8 }); // 9 vs the 1 left behind
+  });
+
+  it('attacks on a mother plant resolve after other moves, even smaller ones', () => {
+    // Player 0 hits player 1's mother with 29; player 1 moves a 2 elsewhere. Player 1 still goes first.
+    const s = makeState(['0B1.'], 2, { 0: 30, 1: 5, 2: 3 });
+    const order = moveOrder(s, new Map([[0, mv(0, 'right')], [1, mv(2, 'right')]]), 2);
+    expect(order).toEqual([1, 0]);
+  });
+
+  it('between two players, priority alternates every tick', () => {
+    const s = makeState(['0..1'], 2, { 0: 5, 3: 5 });
+    const moves = new Map([[0, mv(0, 'right')], [1, mv(3, 'left')]]);
+    const firsts = [10, 11, 12, 13].map((t) => moveOrder(s, moves, t)[0]);
+    expect(firsts).toEqual([0, 1, 0, 1]);
   });
 });
 

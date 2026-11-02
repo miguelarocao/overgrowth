@@ -46,13 +46,28 @@ export function isMoveValid(state: GameState, player: PlayerId, move: Move): boo
 }
 
 /**
- * Turn order for a tick: all players by id, rotated by the tick number so nobody
- * always goes first. Deterministic.
+ * The order moves resolve within a tick, following generals.io:
+ *   1. moves onto your own land first (reinforcements land before attacks),
+ *   2. moves onto a mother plant last (last-second defence counts),
+ *   3. otherwise larger armies before smaller ones,
+ *   4. ties in seat order, reversed every other tick, so between any two players
+ *      priority alternates every move (a chaser always catches up within two moves).
+ * Classified on the board as it stood at the start of the tick. Deterministic.
  */
-export function priorityOrder(playerCount: number, tick: number): PlayerId[] {
-  const order: PlayerId[] = [];
-  for (let k = 0; k < playerCount; k++) order.push((k + tick) % playerCount);
-  return order;
+export function moveOrder(state: GameState, moves: ReadonlyMap<PlayerId, Move | null>, tick: number): PlayerId[] {
+  const keyed: { pid: PlayerId; group: number; army: number }[] = [];
+  for (const [pid, move] of moves) {
+    if (!move) continue;
+    const src = state.tiles[move.from];
+    const to = moveDest(state, move);
+    const dst = to >= 0 ? state.tiles[to] : undefined;
+    const group = dst && dst.owner === pid ? 0 : dst && dst.isMother ? 2 : 1;
+    const army = src && src.owner === pid ? sendAmount(src.stems, move.half) : 0;
+    keyed.push({ pid, group, army });
+  }
+  const reversed = tick % 2 === 1;
+  keyed.sort((a, b) => a.group - b.group || b.army - a.army || (reversed ? b.pid - a.pid : a.pid - b.pid));
+  return keyed.map((k) => k.pid);
 }
 
 function eliminate(state: GameState, victim: PlayerId, by: PlayerId) {
@@ -117,7 +132,7 @@ export function stepDetailed(prev: GameState, moves: ReadonlyMap<PlayerId, Move 
   state.tick = prev.tick + 1;
   const outcomes = new Map<PlayerId, MoveOutcome>();
   const eliminations: Elimination[] = [];
-  for (const pid of priorityOrder(state.players.length, state.tick)) {
+  for (const pid of moveOrder(prev, moves, state.tick)) {
     const move = moves.get(pid);
     if (!move) continue;
     outcomes.set(pid, applyMove(state, pid, move, eliminations));
