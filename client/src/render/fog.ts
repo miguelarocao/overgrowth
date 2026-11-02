@@ -10,19 +10,16 @@ const BASE = new THREE.Color('#2A3540');
 
 const vertexShader = /* glsl */ `
   varying vec2 vUv;
+  varying vec3 vWorld;
   void main() {
     vUv = uv;
-    gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+    vec4 w = modelMatrix * vec4(position, 1.0);
+    vWorld = w.xyz;
+    gl_Position = projectionMatrix * viewMatrix * w;
   }
 `;
 
-const fragmentShader = /* glsl */ `
-  uniform sampler2D uFog;
-  uniform vec2 uSize;
-  uniform float uTime;
-  uniform float uCloud;   // 0 = ground shroud, 1 = cloud layer
-  varying vec2 vUv;
-
+const NOISE = /* glsl */ `
   float hash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
   float noise(vec2 p) {
     vec2 i = floor(p), f = fract(p);
@@ -34,6 +31,16 @@ const fragmentShader = /* glsl */ `
     for (int k = 0; k < 5; k++) { v += a * noise(p); p = p * 2.02 + 17.0; a *= 0.5; }
     return v;
   }
+`;
+
+const fragmentShader = /* glsl */ `
+  uniform sampler2D uFog;
+  uniform vec2 uSize;
+  uniform float uTime;
+  uniform float uCloud;   // 0 = ground shroud, 1 = cloud layer
+  varying vec2 vUv;
+  varying vec3 vWorld;
+  ${NOISE}
 
   void main() {
     vec2 tile = vec2(vUv.x, 1.0 - vUv.y) * uSize;       // board coords, 1 unit per tile
@@ -46,13 +53,15 @@ const fragmentShader = /* glsl */ `
     if (uCloud < 0.5) {
       // Shroud: dim the ground, a little darker under cloud shadows. Stops at the vision edge.
       float body = smoothstep(0.5, 0.92, d);
-      float shade = 0.5 + 0.2 * smoothstep(0.45, 0.75, clouds);
+      float shade = 0.64 + 0.16 * smoothstep(0.45, 0.75, clouds);
       gl_FragColor = vec4(f.rgb, body * shade);
     } else {
       // Clouds: broken puffs (with gaps to see through), only over unexplored areas.
       float body = smoothstep(0.65, 1.0, d);
-      float puff = smoothstep(0.55, 0.8, clouds);
-      float alpha = body * puff * 0.7;
+      float puff = smoothstep(0.57, 0.82, clouds);
+      // Fade out clouds close to the camera so they never smother the foreground.
+      float near = smoothstep(9.0, 20.0, distance(cameraPosition, vWorld));
+      float alpha = body * puff * 0.6 * near;
       vec3 lit = mix(vec3(0.62, 0.64, 0.66), vec3(0.97, 0.97, 0.95), smoothstep(0.5, 0.85, clouds + wob * 0.2));
       gl_FragColor = vec4(lit, alpha);
     }
@@ -112,7 +121,7 @@ export class Fog {
   /** Cover (or uncover) a tile. `tint` colours it towards whoever owned it when last seen. */
   set(i: number, hidden: boolean, tint: THREE.Color | null, instant: boolean) {
     this.target[i] = hidden ? 1 : 0;
-    this.tint[i] = tint ? BASE.clone().lerp(tint, 0.35) : BASE.clone();
+    this.tint[i] = tint ? BASE.clone().lerp(tint, 0.12) : BASE.clone(); // a hint, not a smudge
     if (instant) {
       this.level[i] = this.target[i];
       this.write(i);
@@ -149,5 +158,76 @@ export class Fog {
     this.tex.dispose();
     for (const m of this.mats) m.dispose();
     for (const c of this.group.children) (c as THREE.Mesh).geometry.dispose();
+  }
+}
+
+const stormFragment = /* glsl */ `
+  uniform float uTime;
+  uniform float uOpacity;
+  uniform float uDark;     // 0 = gathering (light grey), 1 = raining (dark)
+  uniform float uSeed;
+  varying vec2 vUv;
+  varying vec3 vWorld;
+  ${NOISE}
+  void main() {
+    vec2 p = (vUv - 0.5) * 2.0;                        // -1..1 across the cloud
+    vec2 drift = vec2(uTime * 0.06, uTime * 0.025);
+    float n = fbm(p * 2.2 + drift + uSeed);
+    float m = fbm(p * 5.0 - drift * 1.4 + uSeed * 2.0);
+    // Round-ish billowing outline: radial falloff pushed around by noise.
+    float r = length(p) + (n - 0.5) * 0.55;
+    float shape = 1.0 - smoothstep(0.55, 0.95, r);
+    float alpha = shape * smoothstep(0.2, 0.55, n + m * 0.35) * uOpacity;
+    vec3 light = mix(vec3(0.80, 0.82, 0.84), vec3(0.42, 0.45, 0.50), uDark);
+    vec3 shadow = mix(vec3(0.58, 0.60, 0.63), vec3(0.24, 0.27, 0.31), uDark);
+    vec3 col = mix(shadow, light, smoothstep(0.35, 0.8, n + (m - 0.5) * 0.4));
+    gl_FragColor = vec4(col, alpha);
+  }
+`;
+
+/** The spring-shower cloud: soft billowing layers drawn with the same noise as the fog clouds. */
+export class StormCloud {
+  readonly group = new THREE.Group();
+  private mats: THREE.ShaderMaterial[] = [];
+  opacity = 0;
+  target = 0;
+  raining = false;
+
+  constructor() {
+    const geo = new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI / 2);
+    [0, 0.35, 0.7].forEach((dy, k) => {
+      const mat = new THREE.ShaderMaterial({
+        vertexShader,
+        fragmentShader: stormFragment,
+        transparent: true,
+        depthWrite: false,
+        side: THREE.DoubleSide,
+        uniforms: { uTime: { value: 0 }, uOpacity: { value: 0 }, uDark: { value: 0 }, uSeed: { value: k * 4.3 } }
+      });
+      const mesh = new THREE.Mesh(geo, mat);
+      mesh.position.y = dy;
+      mesh.scale.setScalar(1 - k * 0.12);
+      mesh.renderOrder = 20 + k;
+      mesh.frustumCulled = false;
+      this.mats.push(mat);
+      this.group.add(mesh);
+    });
+    this.group.visible = false;
+  }
+
+  frame(dt: number, now: number, allowed: boolean) {
+    this.opacity += (this.target - this.opacity) * Math.min(1, dt * 1.5);
+    const dark = this.raining ? 1 : 0;
+    for (const m of this.mats) {
+      m.uniforms.uTime.value = now / 1000;
+      m.uniforms.uOpacity.value = this.opacity;
+      m.uniforms.uDark.value += (dark - m.uniforms.uDark.value) * Math.min(1, dt * 1.2);
+    }
+    this.group.visible = allowed && this.opacity > 0.02;
+  }
+
+  dispose() {
+    for (const m of this.mats) m.dispose();
+    (this.group.children[0] as THREE.Mesh).geometry.dispose();
   }
 }

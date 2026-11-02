@@ -8,7 +8,7 @@ import type { ClientGame } from '../game';
 import { ChunkPool, type Inst, type Kind, KINDS, Recipe, rngFrom, StaticBatch, V, pick } from './kit';
 import * as R from './recipes';
 import { Critters } from './critters';
-import { Fog } from './fog';
+import { Fog, StormCloud } from './fog';
 import type { Weather } from '../../../shared/protocol';
 
 export interface Badge {
@@ -152,11 +152,14 @@ export class World {
   private hemi!: THREE.HemisphereLight;
   private sun!: THREE.DirectionalLight;
   discoUntil = 0;
-  private cloud = new THREE.Group();
+  private storm = new StormCloud();
+  /** The shower cloud's group (positioned over the rain). */
+  get cloud() {
+    return this.storm.group;
+  }
   private rain: THREE.InstancedMesh;
   private wet: THREE.Mesh;
   private shower: Weather['now'] = null;
-  private cloudTarget = 0;
   private rainEdge = new THREE.Group();
   private lastFrame = 0;
   badges: Badge[] = [];
@@ -202,18 +205,7 @@ export class World {
     this.fog = new Fog(this.W, this.H);
     this.scene.add(this.fog.group);
 
-    // Weather: a cloud of grey puffs, rain streaks and a wet sheen on the ground.
-    const puff = new THREE.MeshStandardMaterial({ color: '#B8BEC2', roughness: 1, transparent: true, opacity: 0, depthWrite: false });
-    const puffGeo = new THREE.SphereGeometry(1, 14, 10);
-    for (let k = 0; k < 14; k++) {
-      const m = new THREE.Mesh(puffGeo, puff);
-      const a = (k / 14) * Math.PI * 2;
-      m.position.set(Math.cos(a) * (0.6 + Math.random() * 0.5), Math.random() * 0.3, Math.sin(a) * (0.6 + Math.random() * 0.5));
-      const sc = 0.55 + Math.random() * 0.35;
-      m.scale.set(sc, sc * 0.6, sc);
-      this.cloud.add(m);
-    }
-    this.cloud.visible = false;
+    // Weather: a soft storm cloud, rain streaks and a wet sheen on the ground.
     this.rain = new THREE.InstancedMesh(KINDS.box.geo, new THREE.MeshBasicMaterial({ color: '#CFE3EA', transparent: true, opacity: 0.55 }), 260);
     this.rain.frustumCulled = false;
     this.rain.visible = false;
@@ -472,15 +464,16 @@ export class World {
     const sh = w.now ?? w.next;
     this.shower = w.now;
     if (!sh) {
-      this.cloudTarget = 0;
+      this.storm.target = 0;
+      this.storm.raining = false;
       this.rainEdge.visible = false;
       return;
     }
     const c = this.tilePos(sh.y * this.W + sh.x).add(V((sh.size - 1) / 2, 0, (sh.size - 1) / 2));
-    this.cloud.position.set(c.x, 4.6, c.z);
-    this.cloud.scale.setScalar(sh.size / 2.6);
-    this.cloud.visible = true;
-    this.cloudTarget = w.now ? 0.72 : 0.4;
+    this.cloud.position.set(c.x, 4.4, c.z);
+    this.cloud.scale.setScalar(sh.size + 3);
+    this.storm.target = w.now ? 0.95 : 0.6;
+    this.storm.raining = !!w.now;
     // Outline the exact tiles that will get rained on.
     if (this.rainEdge.userData.size !== sh.size) {
       this.rainEdge.clear();
@@ -501,16 +494,8 @@ export class World {
   }
 
   private weatherFrame(now: number, dt: number) {
-    const puff = (this.cloud.children[0] as THREE.Mesh)?.material as THREE.MeshStandardMaterial;
-    if (puff) {
-      puff.opacity += (this.cloudTarget - puff.opacity) * Math.min(1, dt * 1.5);
-      puff.color.set(this.shower ? '#8E959A' : '#B8BEC2');
-      if (puff.opacity < 0.02 && !this.cloudTarget) this.cloud.visible = false;
-      if (!this.cloudsOn) this.cloud.visible = false;
-      else if (this.cloudTarget) this.cloud.visible = true;
-      this.cloud.rotation.y += dt * 0.05;
-      this.cloud.position.y = 4.6 + Math.sin(now * 0.0008) * 0.1;
-    }
+    this.storm.frame(dt, now, this.cloudsOn);
+    this.cloud.position.y = 4.4 + Math.sin(now * 0.0008) * 0.08;
     const wetMat = this.wet.material as THREE.MeshStandardMaterial;
     wetMat.opacity += ((this.shower ? 0.28 : 0) - wetMat.opacity) * Math.min(1, dt);
     this.wet.visible = wetMat.opacity > 0.01;
@@ -721,7 +706,7 @@ export class World {
       for (let y = b.y; y < b.y + b.h; y++) for (let x = b.x; x < b.x + b.w; x++) if (g.tiles[y * this.W + x].visible) seen = true;
       const hidden = !seen;
       if (hidden !== this.buildingHidden[k] || all) {
-        this.city.tint(`b${k}`, SMOG_GREY, hidden ? 0.5 : 0);
+        this.city.tint(`b${k}`, SMOG_GREY, hidden ? 0.6 : 0);
         this.buildingHidden[k] = hidden;
       }
     });
@@ -783,5 +768,6 @@ export class World {
     this.petals.mesh.dispose();
     for (const { tex } of this.billboardText.values()) tex.dispose();
     this.rain.dispose();
+    this.storm.dispose();
   }
 }
