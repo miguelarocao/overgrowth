@@ -178,7 +178,11 @@ reference/    overgrowth-3d.html
   can't carry identity alone (Sunflower and Zinnia are already near-identical for deuteranopes), so every team
   also has its own bloom silhouette and HUD glyph.
 - **Vision is 2 tiles** around everything you own (diagonals included), not the spec's 1. Playtesters found
-  1 too foggy. It's `VISION_RADIUS` in `shared/config.ts`.
+  1 too foggy. It's `VISION_RADIUS` in `shared/config.ts`. Mother trees are tall, so you spot one from 3 tiles
+  away (`MOTHER_VISION_RADIUS`; only the tree's own tile is revealed).
+- **Mother plants spawn at least 2 tiles from the edge** (`SPAWN_EDGE_MARGIN`). Spreading them out by farthest-point
+  sampling used to put 50–90% of them on the outermost two rows, often hidden behind buildings. The minimum spread
+  is measured over the usable area, so trees start ~20% closer together than before.
 - **Map fairness:** each mother gets a "home" water at exactly the same path distance (5–7), and every
   other water is farther from all mothers than that. Maps failing a check retry with a derived seed.
 - **Tabs and reconnects:** a tab keeps its seat token in sessionStorage (survives reloads); a new tab

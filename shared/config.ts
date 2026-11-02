@@ -14,6 +14,10 @@ export const MAX_QUEUE = 300;
  * The spec (and generals.io) use 1; playtesters found that too foggy, so we use 2.
  */
 export const VISION_RADIUS = 2;
+/** Mother trees are tall, so you can spot one from farther away than ordinary tiles (just the tree's tile). */
+export const MOTHER_VISION_RADIUS = 3;
+/** Mother plants never spawn closer than this to the board edge (corners hid trees behind buildings). */
+export const SPAWN_EDGE_MARGIN = 2;
 export const FOUNTAIN_GARRISON = 50;
 export const WATER_GARRISON_MIN = 40;
 export const WATER_GARRISON_MAX = 50;

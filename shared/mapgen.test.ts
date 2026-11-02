@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { bfsDistances, passable } from './grid';
 import { hashState } from './engine';
 import { generateMap } from './mapgen';
-import { boardSize } from './config';
+import { boardSize, MAX_PLAYERS, SPAWN_EDGE_MARGIN } from './config';
 
 describe('generateMap', () => {
   it('is fully seeded', () => {
@@ -10,7 +10,7 @@ describe('generateMap', () => {
     expect(hashState(generateMap(42, 4))).not.toBe(hashState(generateMap(43, 4)));
   });
 
-  for (const n of [2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]) {
+  for (let n = 2; n <= MAX_PLAYERS; n++) {
     it(`builds a valid, fair map for ${n} players`, () => {
       for (let seed = 1; seed <= 12; seed++) {
         const s = generateMap(seed * 101, n);
@@ -28,6 +28,8 @@ describe('generateMap', () => {
         mothers.sort((a, b) => s.tiles[a].owner! - s.tiles[b].owner!);
         mothers.forEach((m, pid) => {
           expect(s.tiles[m].owner).toBe(pid);
+          const mx = m % size, my = Math.floor(m / size);
+          expect(Math.min(mx, my, size - 1 - mx, size - 1 - my)).toBeGreaterThanOrEqual(SPAWN_EDGE_MARGIN);
           expect(kinds[m]).toBe('plain');
         });
         // Every non-building tile reachable from every mother.

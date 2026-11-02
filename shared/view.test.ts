@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { makeState } from './testutil';
-import { VISION_RADIUS } from './config';
+import { MOTHER_VISION_RADIUS, VISION_RADIUS } from './config';
 import { viewFor, visibilityFor } from './view';
 
 describe('visibility', () => {
@@ -29,6 +29,15 @@ describe('visibility', () => {
     expect(v.tiles[48]).toEqual({ kind: 'plain', owner: null, stems: 0, isMother: false, visible: false });
     expect(v.tiles[41].kind).toBe('building');
     expect(v.tiles[0]).toMatchObject({ owner: 0, isMother: true, visible: true });
+  });
+
+  it(`spots a mother tree from ${MOTHER_VISION_RADIUS} tiles away, but only the tree's own tile`, () => {
+    const near = makeState(['A'.padEnd(MOTHER_VISION_RADIUS, '.') + 'B..', '.'.repeat(MOTHER_VISION_RADIUS + 3)], 2, { [MOTHER_VISION_RADIUS]: 7 });
+    const v = viewFor(near, 0);
+    expect(v.tiles[MOTHER_VISION_RADIUS]).toMatchObject({ visible: true, isMother: true, owner: 1, stems: 7 });
+    expect(v.tiles[near.width + MOTHER_VISION_RADIUS].visible).toBe(false); // the ordinary tile below it stays fogged
+    const far = makeState(['A'.padEnd(MOTHER_VISION_RADIUS + 1, '.') + 'B.'], 2);
+    expect(viewFor(far, 0).tiles[MOTHER_VISION_RADIUS + 1].visible).toBe(false);
   });
 
   it('spectators and eliminated players see everything', () => {

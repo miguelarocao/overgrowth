@@ -1,7 +1,10 @@
-import { VISION_RADIUS } from './config';
+import { MOTHER_VISION_RADIUS, VISION_RADIUS } from './config';
 import type { GameState, PlayerId, PlayerView, TileKind, ViewTile } from './types';
 
-/** Which tiles a player can see: everything within VISION_RADIUS of a tile they own (diagonals too). */
+/**
+ * Which tiles a player can see: everything within VISION_RADIUS of a tile they own (diagonals
+ * too), plus any mother tree within MOTHER_VISION_RADIUS, since trees stand tall over the city.
+ */
 export function visibilityFor(state: GameState, player: PlayerId): Uint8Array {
   const { width: W, height: H, tiles } = state;
   const vis = new Uint8Array(tiles.length);
@@ -12,6 +15,20 @@ export function visibilityFor(state: GameState, player: PlayerId): Uint8Array {
       for (let dx = -VISION_RADIUS; dx <= VISION_RADIUS; dx++) {
         const nx = x + dx, ny = y + dy;
         if (nx >= 0 && ny >= 0 && nx < W && ny < H) vis[ny * W + nx] = 1;
+      }
+    }
+  }
+  // Tall trees: reveal just the mother's tile when any of your land is within the larger radius.
+  const R = MOTHER_VISION_RADIUS;
+  for (let i = 0; i < tiles.length; i++) {
+    if (!tiles[i].isMother || vis[i]) continue;
+    const x = i % W, y = Math.floor(i / W);
+    search: for (let ny = Math.max(0, y - R); ny <= Math.min(H - 1, y + R); ny++) {
+      for (let nx = Math.max(0, x - R); nx <= Math.min(W - 1, x + R); nx++) {
+        if (tiles[ny * W + nx].owner === player) {
+          vis[i] = 1;
+          break search;
+        }
       }
     }
   }

@@ -1,4 +1,4 @@
-import { boardSize, FOUNTAIN_GARRISON, MAX_PLAYERS, MIN_PLAYERS, WATER_GARRISON_MAX, WATER_GARRISON_MIN } from './config';
+import { boardSize, FOUNTAIN_GARRISON, MAX_PLAYERS, MIN_PLAYERS, SPAWN_EDGE_MARGIN, WATER_GARRISON_MAX, WATER_GARRISON_MIN } from './config';
 import { bfsDistances, isStreetCoord, neighbors4, passable } from './grid';
 import { hashSeed, mulberry32, pick, randInt } from './rng';
 import { TEAMS } from './teams';
@@ -106,16 +106,19 @@ function tryGenerate(seed: number, n: number): GameState | null {
   const all = bfsDistances(kinds, W, H, anyOpen);
   for (let i = 0; i < kinds.length; i++) if (passable(kinds[i]) && all[i] < 0) return null;
 
-  // Mother plants: non-street tiles outside the plaza, spread far apart.
+  // Mother plants: non-street tiles outside the plaza, spread far apart, and not hugging the edge
+  // (farthest-point sampling otherwise pushes most of them into corners, often behind buildings).
   const candidates: number[] = [];
   for (let i = 0; i < W * H; i++) {
     const x = i % W, y = Math.floor(i / W);
     if (kinds[i] !== 'plain' || inBlock(plaza, x, y)) continue;
+    if (Math.min(x, y, W - 1 - x, H - 1 - y) < SPAWN_EDGE_MARGIN) continue;
     if (neighbors4(i, W, H).filter((j) => passable(kinds[j])).length < 2) continue;
     candidates.push(i);
   }
   if (candidates.length < n) return null;
-  const minSpread = Math.floor((1.3 * size) / Math.sqrt(n));
+  // Measured over the area mothers may use: with the edge strip off-limits they can't spread as far.
+  const minSpread = Math.floor((1.3 * (size - 2 * SPAWN_EDGE_MARGIN)) / Math.sqrt(n));
   let mothers: number[] | null = null;
   let mothersDist: Int32Array[] = [];
   let bestSpread = -1;
