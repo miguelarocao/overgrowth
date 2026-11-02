@@ -146,6 +146,7 @@ export class World {
   private sig: { bush: string[]; tree: string[]; ground: string[]; sprout: boolean[]; smog: string[]; vis: boolean[]; owner: (number | null)[]; kind: string[] };
   private buildingHidden: boolean[];
   private growing = new Map<number, { t0: number; scale: number; origin: THREE.Vector3 }>();
+  private pulsing = new Map<number, { t0: number; scale: number; origin: THREE.Vector3 }>();
   readonly selection = squareOutline('#FFFFFF', 0.9);
   readonly hover = squareOutline('#FFFFFF', 0.3, 0.35);
   readonly billboards: THREE.Mesh[] = [];
@@ -428,6 +429,24 @@ export class World {
   private cloudsOn = true;
 
   /** Fog-of-war clouds, and the shower cloud (hidden in top-down, where the map matters most). */
+  /**
+   * Round growth: every bush owned by `player` (everyone's, if null) does a quick bloom
+   * bounce, rippling outward a little so the board visibly "breathes". Returns how many pulsed.
+   */
+  pulse(player: number | null, now: number): number {
+    let n = 0;
+    const g = this.game;
+    for (let i = 0; i < g.tiles.length; i++) {
+      const t = g.tiles[i];
+      const sig = this.sig.bush[i];
+      if (!sig || !t.visible || t.owner === null || (player !== null && t.owner !== player)) continue;
+      const scale = Number(sig.split('|')[1]);
+      this.pulsing.set(i, { t0: now + ((i * 37) % 9) * 25, scale, origin: this.bushOrigin(i, false) });
+      n++;
+    }
+    return n;
+  }
+
   setClouds(fogClouds: boolean, storm: boolean) {
     this.cloudsOn = storm;
     this.fog.setClouds(fogClouds);
@@ -733,6 +752,12 @@ export class World {
   frame(now: number) {
     const dt = this.lastFrame ? Math.min(0.05, (now - this.lastFrame) / 1000) : 0;
     this.lastFrame = now;
+    for (const [i, pu] of this.pulsing) {
+      const p = Math.min(1, (now - pu.t0) / 520);
+      const team = this.bushTeam[i];
+      if (team && !this.growing.has(i)) this.bushPool(team).setTransform(i, pu.origin, pu.scale * (1 + 0.22 * Math.sin(Math.PI * p)));
+      if (p >= 1) this.pulsing.delete(i);
+    }
     for (const [i, gr] of this.growing) {
       const p = Math.min(1, (now - gr.t0) / 250);
       const team = this.bushTeam[i];

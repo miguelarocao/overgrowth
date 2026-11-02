@@ -56,6 +56,7 @@ room closes sockets that stay silent for 35 s, which starts the usual 60 s recon
 | Click a tile | Select it |
 | Arrow keys | Queue a step from the selection (the selection moves along, so presses draw a path) |
 | Z | Next step sends half instead of all but one |
+| Space | Select your biggest stack (and move the camera to it) |
 | E / Q | Undo last step / clear the queue |
 | WASD, or left-drag | Pan the camera |
 | Right-drag, Shift+drag, sideways trackpad swipe, R / Shift+R or the ⟲ ⟳ buttons | Rotate the board (handy for seeing behind tall buildings; R snaps a quarter turn) |
@@ -157,6 +158,10 @@ reference/    overgrowth-3d.html
 - **Spring showers** default to on; the host can switch them off for classic rules. The schedule is
   derived from the seed (deterministic, replayable), but the seed is never sent to clients,
   since it would reveal the map. The server sends the current and upcoming shower instead.
+- **Move order within a tick follows generals.io:** moves onto your own land resolve first,
+  attacks on a mother plant last, otherwise bigger armies first; ties go in seat order, reversed
+  every tick, so priority between any two players alternates every move. (Sources: the
+  r/generalsio wiki on move priority, and the Softmax generals.io reimplementation's rules.)
 - **Board size scales with players** (instead of the spec's 20x20 / 26x26): 2 → 20x20, 3 → 22, 4 → 24,
   5 → 26, 6 → 27, 7 → 28, 8 → 30. Two players match generals.io 1v1 maps (randomised 18–23 per
   side in high-rank replays); larger games keep roughly 110–150 tiles per player.

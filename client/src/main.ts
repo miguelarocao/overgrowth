@@ -4,6 +4,7 @@ import type { Replay } from '../../shared/replay';
 import { teamColor } from '../../shared/teams';
 import type { Dir } from '../../shared/types';
 import { ClientGame } from './game';
+import { LAND_GROWTH_TICKS } from '../../shared/config';
 import { sfx } from './audio';
 import { Fun, greetConsole } from './fun';
 import { LOCAL_REPLAY_KEY, LocalConnection, WsConnection, type Connection } from './net';
@@ -208,6 +209,13 @@ function gameScreen(code: string | null): Screen {
         world.update(ch.changed, now);
         if (ch.dropped.length) vines!.flash(ch.dropped, now);
         if (fun && before) fun.onTick(before, ch, m);
+        // Round growth (every 25 turns): the land visibly breathes, with a soft chime.
+        if (m.tick > 0 && m.tick % LAND_GROWTH_TICKS === 0 && !game.over) {
+          const n = world.pulse(game.alive ? game.you : null, now);
+          if (n && !view!.reduced) sfx.growth();
+          const mother = game.tiles.findIndex((t) => t.isMother && t.owner === game!.you);
+          if (mother >= 0 && game.alive) view!.float(world.tilePos(mother, 2.4), `🌱 +1 on all ${game.players.find((p) => p.id === game!.you)?.land ?? ''} tiles`, '#B9E6A0', 15, 1600);
+        }
         if (firstTick && game.you !== null) {
           const mother = game.tiles.findIndex((t) => t.isMother && t.owner === game!.you);
           if (mother >= 0) {
@@ -392,6 +400,19 @@ window.addEventListener('keydown', (e) => {
   else if (key === 'q') game.clear();
   else if (/^[1-6]$/.test(key)) current.fun?.emote(Number(key) - 1);
   else if (key === 'Escape') game.select(null);
+  else if (key === ' ' && current.world) {
+    // Space: grab your biggest stack and bring the camera to it.
+    e.preventDefault();
+    let best = -1;
+    game.tiles.forEach((t, i) => {
+      if (t.owner === game.you && t.stems > 1 && (best < 0 || t.stems > game.tiles[best].stems)) best = i;
+    });
+    if (best >= 0 && game.alive) {
+      game.select(best);
+      view!.focus(current.world.tilePos(best));
+      sfx.select();
+    }
+  }
   else if (key === 'h' && current.world) {
     const home = game.selection ?? game.tiles.findIndex((t) => t.isMother && t.owner === game.you);
     if (home >= 0) view!.focus(current.world.tilePos(home));
@@ -428,6 +449,11 @@ canvas.addEventListener('pointermove', (e) => {
   canvas.style.cursor = ok && world.game.canSelect(tile) ? 'pointer' : '';
 });
 canvas.addEventListener('contextmenu', (e) => e.preventDefault());
+// After clicking a HUD button, hand the keyboard back to the game (otherwise Space would re-press it).
+document.addEventListener('click', (e) => {
+  const b = (e.target as HTMLElement | null)?.closest?.('.hud button');
+  if (b instanceof HTMLButtonElement) b.blur();
+});
 
 // Handy for debugging in devtools (and the browser tests): only your own client state.
 (window as any).og = { get game() { return current?.game ?? null; }, get view() { return view; } };

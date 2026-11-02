@@ -137,6 +137,11 @@ class Sfx {
     });
   }
 
+  /** Round growth: a soft rising shimmer. */
+  growth() {
+    [0, 4, 7, 12].forEach((n, k) => setTimeout(() => this.pluck(n + 2, 0.09), k * 55));
+  }
+
   emote() {
     this.tone(1040, 0.08, 'sine', 0.15, 0, 1560);
   }

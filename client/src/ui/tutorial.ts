@@ -72,7 +72,7 @@ export class Tutorial {
         done: (g) => landOf(g) >= 4
       },
       {
-        html: 'The <b>dark areas</b> are unexplored. You can see streets and buildings there, but not who is there, how strong they are, or where the hydrants are. Your growth lights them up. Bigger stacks grow bigger plants.',
+        html: 'The <b>dark areas</b> are unexplored. You can see streets and buildings there, but not who is there, how strong they are, or where the hydrants are. Your growth lights them up. Every 25 turns all your land grows +1: watch the round bar under the turn counter.',
       },
       {
         html: '💧 <b>Fire hydrants</b> hide in the dark until you find them. They\'re guarded by 40–50 stems, but once yours they grow +1 every turn, like a second mother plant. Build a big stack first. Surround a building and it gets overgrown 🌿.',
@@ -88,7 +88,7 @@ export class Tutorial {
         }
       },
       {
-        html: '<b>Camera:</b> <kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> or drag to pan, scroll to zoom, right-drag, <kbd>Shift</kbd>+drag, <kbd>R</kbd> or the ⟲⟳ buttons to rotate (great for peeking behind tall buildings), <kbd>H</kbd> to jump home, <kbd>C</kbd> for a top-down map. Speeds are in ⚙ Settings.'
+        html: '<b>Camera:</b> <kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> or drag to pan, scroll to zoom, right-drag, <kbd>Shift</kbd>+drag, <kbd>R</kbd> or the ⟲⟳ buttons to rotate (great for peeking behind tall buildings), <kbd>Space</kbd> to grab your biggest stack, <kbd>H</kbd> to jump home, <kbd>C</kbd> for a top-down map. Speeds are in ⚙ Settings.'
       },
       {
         html: '<kbd>Z</kbd> makes your next step send <b>half</b> instead, handy for splitting a stack. <kbd>1</kbd>–<kbd>6</kbd> send emotes.'

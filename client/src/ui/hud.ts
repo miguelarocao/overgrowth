@@ -41,6 +41,7 @@ export class Hud {
         <div class="brand">
           <h1>Overgrowth</h1>
           <p><span id="turn">TURN 0</span> · ${esc(label)} <span class="status-pill" id="status" hidden></span></p>
+          <div class="round" id="round" title="Every 25 turns, all your land grows +1 stem"><span id="round-text">Round 1 · land grows in 25</span><span class="round-bar"><i id="round-fill"></i></span></div>
         </div>
         <div class="weather" id="weather" hidden aria-live="polite"></div>
         <section class="panel board" aria-label="Players"><table><thead><tr><th>PLAYER</th><th>STEMS</th><th>LAND</th></tr></thead><tbody id="rows"></tbody></table></section>
@@ -51,7 +52,7 @@ export class Hud {
           <div class="queue-head"><span class="eyebrow" id="q-title">Your queue</span><span class="readout" id="readout" aria-live="polite">Queue empty</span></div>
           <div class="line"><span>Next step</span><b id="mode">All but one</b></div>
           <div class="line"><span>Selected stack</span><b id="sel">None</b></div>
-          <div class="keys">Click a tile · <kbd>←↑→↓</kbd> grow · <kbd>Z</kbd> half · <kbd>E</kbd> undo · <kbd>Q</kbd> clear<br><kbd>WASD</kbd>/drag pan · scroll zoom · rotate: right-drag, <kbd>Shift</kbd>+drag, <kbd>R</kbd> or ⟲⟳ · <kbd>H</kbd> home · <kbd>C</kbd> top-down</div>
+          <div class="keys">Click a tile · <kbd>←↑→↓</kbd> grow · <kbd>Z</kbd> half · <kbd>E</kbd> undo · <kbd>Q</kbd> clear<br><kbd>Space</kbd> biggest stack · <kbd>WASD</kbd>/drag pan · scroll zoom · rotate: right-drag, <kbd>Shift</kbd>+drag, <kbd>R</kbd> or ⟲⟳ · <kbd>H</kbd> home · <kbd>C</kbd> top-down</div>
         </section>`}
         <div class="panel emotes" aria-label="Emotes" ${replay ? 'hidden' : ''}>
           ${EMOTES.map((e, k) => `<button class="emote" data-e="${k}" title="${e.label} (${k + 1})" aria-label="Emote: ${e.label}">${e.emoji}<kbd>${k + 1}</kbd></button>`).join('')}
@@ -161,7 +162,13 @@ export class Hud {
   }
 
   update(g: ClientGame) {
-    this.q('#turn').textContent = `TURN ${Math.floor(g.tick / 2)}`;
+    const turn = Math.floor(g.tick / 2);
+    this.q('#turn').textContent = `TURN ${turn}`;
+    // Rounds: every 25 turns all owned land grows +1. Attacking just before it lands steals that +1.
+    const into = turn % 25, left = 25 - into;
+    this.q('#round-text').textContent = `Round ${Math.floor(turn / 25) + 1} · land grows in ${left} ${left === 1 ? 'turn' : 'turns'}`;
+    this.q('#round-fill').style.width = `${(into / 25) * 100}%`;
+    this.q('#round').classList.toggle('soon', left <= 3);
     const rows = [...g.players].sort((a, b) => Number(b.alive) - Number(a.alive) || b.land - a.land || b.stems - a.stems);
     const now = performance.now();
     this.q('#rows').innerHTML = rows.map((p, rank) => {
