@@ -23,7 +23,7 @@ export interface Badge {
 const SOIL = new THREE.Color('#3B3026');
 /** Height of the spring-shower cloud: high enough not to sit over the board. */
 const STORM_Y = 6.2;
-const SMOG_GREY = new THREE.Color('#2A333B'); // unexplored buildings: dimmed to match the shroud
+const SMOG_GREY = new THREE.Color('#1B2127'); // unexplored buildings: dimmed to match the shroud
 const ZERO = new THREE.Matrix4().makeScale(0, 0, 0);
 
 /** Bigger stacks grow bigger plants: the city should look properly overgrown. */
@@ -739,7 +739,7 @@ export class World {
       for (let y = b.y; y < b.y + b.h; y++) for (let x = b.x; x < b.x + b.w; x++) if (g.tiles[y * this.W + x].visible) seen = true;
       const hidden = !seen;
       if (hidden !== this.buildingHidden[k] || all) {
-        this.city.tint(`b${k}`, SMOG_GREY, hidden ? 0.72 : 0);
+        this.city.tint(`b${k}`, SMOG_GREY, hidden ? 0.82 : 0);
         this.buildingHidden[k] = hidden;
       }
     });

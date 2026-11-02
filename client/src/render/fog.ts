@@ -6,7 +6,7 @@
 import * as THREE from 'three';
 
 const CLOUD_Y = 2.0; // low enough that clouds line up with the dark area below them
-const BASE = new THREE.Color('#121920');
+const BASE = new THREE.Color('#0A0E12');
 
 const vertexShader = /* glsl */ `
   varying vec2 vUv;
@@ -53,7 +53,7 @@ const fragmentShader = /* glsl */ `
     if (uCloud < 0.5) {
       // Shroud: dim the ground, a little darker under cloud shadows. Stops at the vision edge.
       float body = smoothstep(0.5, 0.92, d);
-      float shade = 0.76 + 0.1 * smoothstep(0.45, 0.75, clouds);
+      float shade = 0.88 + 0.07 * smoothstep(0.45, 0.75, clouds);
       gl_FragColor = vec4(f.rgb, body * shade);
     } else {
       // Clouds: broken puffs (with gaps to see through), only over unexplored areas.
