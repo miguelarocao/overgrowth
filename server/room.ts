@@ -77,7 +77,7 @@ export class Room {
 
   private token(): string {
     const b = new Uint8Array(16);
-    globalThis.crypto.getRandomValues(b);
+    crypto.getRandomValues(b);
     return Array.from(b, (x) => x.toString(16).padStart(2, '0')).join('');
   }
 

@@ -1,0 +1,21 @@
+// Cloudflare deployment (see worker/index.ts). Fits the Workers Free plan:
+// Durable Objects there must use the SQLite storage backend, hence new_sqlite_classes.
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "overgrowth",
+  "main": "worker/index.ts",
+  "compatibility_date": "2026-10-01",
+  "assets": {
+    "directory": "./dist/client",
+    "binding": "ASSETS",
+    // /r/<code>, /offline and /replay/<id> are client-side routes: serve index.html.
+    "not_found_handling": "single-page-application",
+    // ...but the socket and the API must always reach the Worker.
+    "run_worker_first": ["/ws", "/api/*"]
+  },
+  "durable_objects": {
+    "bindings": [{ "name": "ROOMS", "class_name": "GameRoom" }]
+  },
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["GameRoom"] }],
+  "observability": { "enabled": true }
+}
