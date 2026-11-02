@@ -41,12 +41,16 @@ const store = {
   }
 };
 
+/** How often an open socket says it's still here. Keep it well under the server's silence limit. */
+const HEARTBEAT_MS = 10_000;
+
 export class WsConnection implements Connection {
   readonly offline = false;
   private ws: WebSocket | null = null;
   private retry = 0;
   private closed = false;
   private outbox: ClientMsg[] = [];
+  private beat: ReturnType<typeof setInterval> | null = null;
 
   constructor(private room: string, private name: () => string, private h: Handlers) {
     this.connect();
@@ -55,7 +59,9 @@ export class WsConnection implements Connection {
   private connect() {
     this.h.onStatus('connecting');
     const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const ws = new WebSocket(`${proto}//${location.host}/ws`);
+    // The room code is in the URL too, so a host can route the socket before it opens
+    // (the Cloudflare Worker sends it to that room's Durable Object).
+    const ws = new WebSocket(`${proto}//${location.host}/ws?room=${encodeURIComponent(this.room)}`);
     this.ws = ws;
     ws.onopen = () => {
       this.retry = 0;
@@ -63,6 +69,8 @@ export class WsConnection implements Connection {
       const own = store.own(key);
       ws.send(JSON.stringify({ t: 'join', room: this.room, name: this.name(), token: own ?? store.get(key) ?? undefined, resume: !!own }));
       for (const m of this.outbox.splice(0)) ws.send(JSON.stringify(m));
+      this.stopBeat();
+      this.beat = setInterval(() => ws.readyState === WebSocket.OPEN && ws.send('{"t":"ping"}'), HEARTBEAT_MS);
       this.h.onStatus('open');
     };
     ws.onmessage = (e) => {
@@ -76,11 +84,17 @@ export class WsConnection implements Connection {
       this.h.onMessage(m);
     };
     ws.onclose = () => {
+      this.stopBeat();
       if (this.closed) return;
       this.h.onStatus('closed');
       const wait = Math.min(8000, 500 * 2 ** this.retry++);
       setTimeout(() => this.connect(), wait);
     };
+  }
+
+  private stopBeat() {
+    if (this.beat) clearInterval(this.beat);
+    this.beat = null;
   }
 
   send(m: ClientMsg) {
@@ -90,6 +104,7 @@ export class WsConnection implements Connection {
 
   close() {
     this.closed = true;
+    this.stopBeat();
     this.ws?.close();
   }
 }

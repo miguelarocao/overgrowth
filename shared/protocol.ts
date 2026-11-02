@@ -51,7 +51,9 @@ export type ClientMsg =
   | { t: 'clearQueue'; seq: number }
   | { t: 'undo'; seq: number }
   | { t: 'surrender' }
-  | { t: 'backToLobby' };
+  | { t: 'backToLobby' }
+  /** Heartbeat every few seconds so a host without protocol pings (Cloudflare) can drop dead sockets. */
+  | { t: 'ping' };
 
 export type ServerMsg =
   | { t: 'welcome'; token: string; room: string }

@@ -28,6 +28,27 @@ Or with Docker: `docker build -t overgrowth . && docker run -p 8787:8787 -v og-d
 Any small Node host works; there is no database. Replays are JSON files under `$DATA_DIR/replays`.
 Put it behind HTTPS if it's reachable from outside your network (the client switches to `wss://` automatically).
 
+### Cloudflare (free tier)
+
+The same game also runs on Cloudflare Workers + Durable Objects ([worker/index.ts](worker/index.ts)).
+One Worker serves the client and sends each room's WebSocket to a Durable Object named after
+the room code, which runs the same `Room` as the Node server. Share links stay `/r/<code>`.
+
+```bash
+npx wrangler login     # once
+npm run cf:deploy      # builds the client, deploys to https://overgrowth.<you>.workers.dev
+npm run cf:dev         # the same thing locally, in workerd, on :8787
+```
+
+It fits the Workers Free plan: Durable Objects there must use SQLite storage (set in
+[wrangler.jsonc](wrangler.jsonc)), and the free compute allowance is 13,000 GB-s a day.
+A room is billed as 128 MB while it's awake, so that's roughly 28 room-hours a day, about
+100 fifteen-minute games. Over the limit, requests fail until 00:00 UTC rather than costing money.
+Rooms aren't persisted: an empty room is dropped after 10 minutes (Cloudflare may evict it
+sooner), and a deploy ends live games. Replays are kept in the room's SQLite storage for 7 days.
+Because Workers don't expose WebSocket pings, clients send `{"t":"ping"}` every 10 s and the
+room closes sockets that stay silent for 35 s, which starts the usual 60 s reconnect grace.
+
 ## Controls
 
 | Input | Action |
@@ -93,6 +114,8 @@ shared/     engine: pure TypeScript, no DOM, no network, no clocks
 server/
   room.ts     lobby, seats, bots, tick loop, per-client views (pure; also runs in the browser offline)
   index.ts    Node http + ws, static client, replay API
+worker/
+  index.ts    Cloudflare Worker + GameRoom Durable Object (same Room, one object per room code)
 client/       Vite + TypeScript + three.js
   src/game.ts          client state, optimistic queue prediction, arrival estimates
   src/render/kit.ts    instancing toolkit (one InstancedMesh per part type, per-tile chunks)
@@ -161,5 +184,5 @@ npm run sim -- 300 # headless bot-vs-bot games: crashes, unfinished games, lengt
 6. Extras — teams 5–8 are in (Poppy, Daisy, Cherry blossom, Bluebell) and need a playtest for distinctness. Rule variants: spring showers and pace.
 
 Known gaps: bots are simple (fine for filling seats; games with 5–8 bots run long), frame rate
-has not been measured on real laptop GPUs, and no Cloudflare Durable Objects adapter
-(`server/room.ts` is transport-agnostic, so one would be a thin wrapper).
+has not been measured on real laptop GPUs, and the Cloudflare deployment has only been tested
+locally in workerd (`npm run cf:dev`), not on a live account.

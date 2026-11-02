@@ -9,8 +9,10 @@
     "build": "vite build",
     "start": "NODE_ENV=production tsx server/index.ts",
     "test": "vitest run",
-    "typecheck": "tsc --noEmit",
-    "sim": "tsx bots/sim.ts"
+    "typecheck": "tsc --noEmit && tsc --noEmit -p worker",
+    "sim": "tsx bots/sim.ts",
+    "cf:dev": "vite build && wrangler dev",
+    "cf:deploy": "vite build && wrangler deploy"
   },
   "engines": {
     "node": ">=20"
@@ -21,12 +23,14 @@
     "ws": "^8.22.1"
   },
   "devDependencies": {
+    "@cloudflare/workers-types": "^5.20261102.1",
     "@types/node": "^26.6.6",
     "@types/three": "^0.187.0",
     "@types/ws": "^8.18.2",
     "concurrently": "^10.0.6",
     "typescript": "^7.0.2",
     "vite": "^8.3.5",
-    "vitest": "^5.0.5"
+    "vitest": "^5.0.5",
+    "wrangler": "^4.156.1"
   }
 }
