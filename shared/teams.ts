@@ -24,7 +24,13 @@ export const TEAMS: readonly TeamDef[] = [
   { key: 'fuchsia', name: 'Fuchsia', color: '#D6339E', shape: 'drop', core: false },
   { key: 'hydrangea', name: 'Hydrangea', color: '#2CB8B0', shape: 'mophead', core: false },
   { key: 'zinnia', name: 'Zinnia', color: '#B5D334', shape: 'pompom', core: false },
-  { key: 'dahlia', name: 'Dahlia', color: '#9B2D5A', shape: 'dahlia', core: false }
+  { key: 'dahlia', name: 'Dahlia', color: '#9B2D5A', shape: 'dahlia', core: false },
+  // Players 13 to 16: imaginary flowers. Colours chosen to sit as far as possible (in OKLab,
+  // also under simulated deuteranopia) from the twelve above, the leaf greens and the water blue.
+  { key: 'firefly', name: 'Firefly lily', color: '#78FF96', shape: 'orb', core: false },
+  { key: 'star', name: 'Starbloom', color: '#F078FF', shape: 'star', core: false },
+  { key: 'frost', name: 'Frostthorn', color: '#00FFE1', shape: 'crystal', core: false },
+  { key: 'storm', name: 'Stormpuff', color: '#3C78A5', shape: 'puff', core: false }
 ];
 
 export const TEAM_BY_KEY: Record<string, TeamDef> = Object.fromEntries(TEAMS.map((t) => [t.key, t]));

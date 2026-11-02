@@ -16,6 +16,42 @@ const leafGreen = (team: string, r: Rng) =>
   : team === 'cherry' ? pick(r, ['#5C8A45', '#6B9650', '#4F7D3C'])
   : pick(r, GREENS);
 
+const MINTS = ['#78FF96', '#9BFFB0', '#5FF07E'];
+const ORCHIDS = ['#F078FF', '#F59AFF', '#E25CF2'];
+const ICE = ['#00FFE1', '#7DFFF0', '#C8FFF8', '#2EE8D0'];
+const SLATES = ['#3C78A5', '#4A88B8', '#2F6690'];
+
+/** Two unit vectors perpendicular to `dir` (and to each other), for laying things out around it. */
+function around(dir: THREE.Vector3): [THREE.Vector3, THREE.Vector3] {
+  const a = Math.abs(dir.y) < 0.9 ? UP : V(1, 0, 0);
+  const u = new THREE.Vector3().crossVectors(dir, a).normalize();
+  return [u, new THREE.Vector3().crossVectors(dir, u).normalize()];
+}
+
+/** A flat five-point star facing `dir` (Starbloom). */
+function star(rc: Recipe, pos: THREE.Vector3, dir: THREE.Vector3, r: Rng, s: number) {
+  const [u, v] = around(dir);
+  const turn = r() * Math.PI * 2;
+  for (let k = 0; k < 5; k++) {
+    const a = turn + (k / 5) * Math.PI * 2;
+    const p = u.clone().multiplyScalar(Math.cos(a)).addScaledVector(v, Math.sin(a));
+    rc.add('bud', pos.clone().addScaledVector(p, 0.045 * s), qFrom(p), V(0.022 * s, 0.05 * s, 0.01 * s), pick(r, ORCHIDS));
+  }
+  rc.add('ball', pos.clone().addScaledVector(dir, 0.008 * s), null, 0.02 * s, '#FFF0FF');
+}
+
+/** A spoked sphere like a dandelion clock (Stormpuff): a dark core, thin spokes, pale tips. */
+function puff(rc: Recipe, c: THREE.Vector3, rad: number, spokes: number, r: Rng) {
+  rc.add('ball', c, randQuat(r), rad * 0.32, '#24496A');
+  for (let k = 0; k < spokes; k++) {
+    // Even-ish spread on a sphere (golden-angle spiral), so the puff reads as round.
+    const y = 1 - (2 * (k + 0.5)) / spokes, ring = Math.sqrt(1 - y * y), a = k * 2.39996 + r() * 0.3;
+    const d = V(Math.cos(a) * ring, y, Math.sin(a) * ring);
+    rc.add('stem', c.clone().addScaledVector(d, rad * 0.5), qFrom(d), V(rad * 0.05, rad, rad * 0.05), '#9FB8CC');
+    rc.add('ball', c.clone().addScaledVector(d, rad), null, rad * 0.17, pick(r, ['#6FA6D2', ...SLATES]));
+  }
+}
+
 /** One bloom on a surface point facing `dir`. Shared by bushes (scale 1) and trees (scale ~1.2). */
 function bloom(rc: Recipe, team: string, pos: THREE.Vector3, dir: THREE.Vector3, r: Rng, s = 1) {
   switch (team) {
@@ -65,6 +101,26 @@ function bloom(rc: Recipe, team: string, pos: THREE.Vector3, dir: THREE.Vector3,
       rc.add('disc', pos.clone().addScaledVector(dir, 0.02 * s), qFrom(dir), V(0.07 * s, 0.06 * s, 0.07 * s), '#B4436F');
       rc.add('ball', pos.clone().addScaledVector(dir, 0.04 * s), null, 0.025 * s, '#5E1533');
       break;
+    case 'firefly': {
+      // A wiry stalk holding a glowing orb, like a firefly perched on the plant.
+      const d = V(dir.x * 0.5, 1, dir.z * 0.5).normalize();
+      rc.add('stem', pos.clone().addScaledVector(d, 0.035 * s), qFrom(d), V(0.004 * s, 0.07 * s, 0.004 * s), '#3E6B3A');
+      rc.add('glow', pos.clone().addScaledVector(d, 0.085 * s), null, 0.042 * s, pick(r, MINTS));
+      break;
+    }
+    case 'star':
+      star(rc, pos, dir, r, s);
+      break;
+    case 'frost':
+      // A little cluster of ice crystals pointing outward.
+      for (let k = 0; k < 2; k++) {
+        const d = dir.clone().add(randDir(r).multiplyScalar(0.45)).normalize();
+        rc.add('bud', pos.clone().addScaledVector(d, 0.035 * s), qFrom(d), V(0.018 * s, 0.07 * s, 0.018 * s), pick(r, ICE));
+      }
+      break;
+    case 'storm':
+      puff(rc, pos.clone().addScaledVector(dir, 0.07 * s), 0.09 * s, 12, r);
+      break;
     case 'bell': {
       // Drooping bells: open side down, hanging just below the surface point.
       const p = pos.clone().add(V(0, -0.035 * s, 0));
@@ -99,7 +155,9 @@ function stemBetween(rc: Recipe, a: THREE.Vector3, b: THREE.Vector3, thick: numb
  * distinct at a glance (and for colourblind players):
  * morning glory = vine arch, sunflower = tall stalks, lavender = spiky tuft,
  * rose = dense round shrub, poppy = cups on thin stems, daisy = flat white carpet,
- * cherry = tiny tree, bluebell = weeping fountain of bells.
+ * cherry = tiny tree, bluebell = weeping fountain of bells, and four imaginary ones:
+ * firefly lily = glowing orbs on wiry stalks, starbloom = stars over a succulent rosette,
+ * frostthorn = a cluster of ice crystals, stormpuff = big spoked puffs on tall stems.
  */
 export function bush(team: string, r: Rng): Recipe {
   const rc = new Recipe();
@@ -260,6 +318,63 @@ export function bush(team: string, r: Rng): Recipe {
       }
       return rc;
     }
+    case 'firefly': {
+      // A grassy tuft with wiry stalks of glowing orbs, and a couple of fireflies hovering free.
+      for (let k = 0; k < 9; k++) {
+        const a = r() * Math.PI * 2, d = Math.sqrt(r()) * 0.12;
+        rc.add('bud', V(Math.cos(a) * d, 0.09, Math.sin(a) * d), qFrom(V(Math.cos(a) * 0.4, 1, Math.sin(a) * 0.4)), V(0.02, 0.18, 0.012), pick(r, ['#3F7F38', '#4A8C3F', '#356B30']));
+      }
+      for (let k = 0; k < 7; k++) {
+        const a = (k / 7) * Math.PI * 2 + r() * 0.6, d = 0.1 + r() * 0.2;
+        const h = 0.3 + r() * 0.4;
+        const mid = V(Math.cos(a) * d * 0.4, h * 0.55, Math.sin(a) * d * 0.4);
+        const top = V(Math.cos(a) * d, h, Math.sin(a) * d);
+        stemBetween(rc, V(0, 0.04, 0), mid, 0.006, '#3E6B3A');
+        stemBetween(rc, mid, top, 0.005, '#3E6B3A');
+        rc.add('glow', top, null, 0.06 + r() * 0.02, pick(r, MINTS));
+      }
+      for (let k = 0; k < 3; k++) rc.add('glow', V((r() - 0.5) * 0.6, 0.5 + r() * 0.35, (r() - 0.5) * 0.6), null, 0.03, '#C8FFD4');
+      return rc;
+    }
+    case 'star': {
+      // A spiky succulent rosette with flat star blooms on short stalks above it.
+      for (let k = 0; k < 10; k++) {
+        const a = (k / 10) * Math.PI * 2 + r() * 0.3, up = 0.25 + r() * 0.5;
+        const d = V(Math.cos(a), up, Math.sin(a)).normalize();
+        rc.add('bud', d.clone().multiplyScalar(0.13).add(V(0, 0.05, 0)), qFrom(d), V(0.045, 0.16, 0.02), pick(r, ['#5F8D6A', '#6E9E78', '#557F60']));
+      }
+      for (let k = 0; k < 6; k++) {
+        const a = r() * Math.PI * 2, d = Math.sqrt(r()) * 0.22;
+        const top = V(Math.cos(a) * d, 0.24 + r() * 0.18, Math.sin(a) * d);
+        stemBetween(rc, V(top.x * 0.3, 0.06, top.z * 0.3), top, 0.007, '#557F60');
+        star(rc, top, V(top.x * 0.8, 1, top.z * 0.8).normalize(), r, 1.9);
+      }
+      return rc;
+    }
+    case 'frost': {
+      // No leaves to speak of: a quartz-like cluster of tall ice crystals, tilted outward.
+      for (let k = 0; k < 3; k++) rc.add('leafLo', V((r() - 0.5) * 0.25, 0.04, (r() - 0.5) * 0.25), randQuat(r), V(0.09, 0.04, 0.08), pick(r, ['#5E8C86', '#6E9A94']));
+      for (let k = 0; k < 7; k++) {
+        const a = r() * Math.PI * 2, lean = k === 0 ? 0 : 0.25 + r() * 0.45;
+        const d = V(Math.cos(a) * lean, 1, Math.sin(a) * lean).normalize();
+        const h = k === 0 ? 0.55 : 0.22 + r() * 0.28;
+        const base = V(Math.cos(a) * 0.08 * lean * 3, 0, Math.sin(a) * 0.08 * lean * 3);
+        rc.add('bud', base.addScaledVector(d, h * 0.5), qFrom(d), V(0.055 + r() * 0.03, h * 0.55, 0.055 + r() * 0.03), pick(r, ICE));
+      }
+      return rc;
+    }
+    case 'storm': {
+      // Tall bare stems, each topped with a big spoked puff that sways above the board.
+      mound(rc, r, 4, [0.07, 0.1], 0.14, ['#4A6B5A', '#3F5E4E'], 0.6);
+      for (let k = 0; k < 3; k++) {
+        const a = (k / 3) * Math.PI * 2 + r() * 0.8, d = k === 0 ? 0 : 0.14 + r() * 0.08;
+        const h = k === 0 ? 0.68 : 0.42 + r() * 0.16;
+        const top = V(Math.cos(a) * d, h, Math.sin(a) * d);
+        stemBetween(rc, V(0, 0.04, 0), top, 0.01, '#4A6B5A');
+        puff(rc, top, k === 0 ? 0.2 : 0.15, k === 0 ? 24 : 18, r);
+      }
+      return rc;
+    }
   }
   // Fallback: a plain leafy mound with team blooms.
   const leaves = mound(rc, r, 9, [0.15, 0.24], 0.2, GREENS);
@@ -297,7 +412,7 @@ export function tree(team: string, r: Rng): Recipe {
     rc.add('leaf', p, null, rad, team === 'lav' ? pick(r, ['#5F7D52', '#6E8B5E', '#4F6E46']) : leafGreen(team, r));
     leaves.push({ p, rad });
   }
-  const count = ({ glory: 46, sun: 28, lav: 38, rose: 40, poppy: 34, daisy: 44, cherry: 40, bell: 40, fuchsia: 36, hydrangea: 30, zinnia: 34, dahlia: 28 } as Record<string, number>)[team] ?? 36;
+  const count = ({ glory: 46, sun: 28, lav: 38, rose: 40, poppy: 34, daisy: 44, cherry: 40, bell: 40, fuchsia: 36, hydrangea: 30, zinnia: 34, dahlia: 28, firefly: 38, star: 32, frost: 34, storm: 20 } as Record<string, number>)[team] ?? 36;
   for (let k = 0; k < count; k++) {
     const L = pick(r, leaves);
     if (team === 'lav') {

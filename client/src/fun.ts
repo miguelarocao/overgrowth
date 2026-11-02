@@ -197,7 +197,7 @@ export class Fun {
       this.world.confetti([c, '#FFFFFF', '#FFD66B', c]);
       setTimeout(() => this.world.confetti([c, '#F5A7C7', '#7FC468']), 900);
     } else if (this.me === null || !g.alive) sfx.chime();
-    setTimeout(() => this.hud.gameOver(g, m.winner, m.replayId, canGoLobby, m.awards as Award[]), 900);
+    setTimeout(() => this.hud.gameOver(g, m.winner, m.replayId, canGoLobby, m.awards as Award[], m.reason), 900);
   }
 
   emote(e: number) {

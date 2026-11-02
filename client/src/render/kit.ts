@@ -46,9 +46,9 @@ function puddleGeo() {
   return g;
 }
 
-export type Kind = 'leaf' | 'leafLo' | 'ball' | 'disc' | 'bud' | 'stem' | 'box' | 'cyl' | 'taper' | 'cone' | 'bell' | 'prism' | 'dome' | 'lit' | 'glass' | 'puddle';
+export type Kind = 'leaf' | 'leafLo' | 'ball' | 'disc' | 'bud' | 'stem' | 'box' | 'cyl' | 'taper' | 'cone' | 'bell' | 'prism' | 'dome' | 'lit' | 'glow' | 'glass' | 'puddle';
 
-interface KindDef { geo: THREE.BufferGeometry; rough: number; metal?: number; emissive?: boolean; transparent?: boolean }
+interface KindDef { geo: THREE.BufferGeometry; rough: number; metal?: number; emissive?: boolean | string; transparent?: boolean }
 
 export const KINDS: Record<Kind, KindDef> = {
   leaf: { geo: new THREE.IcosahedronGeometry(1, 1), rough: 0.95 },
@@ -66,6 +66,8 @@ export const KINDS: Record<Kind, KindDef> = {
   prism: { geo: prismGeo(), rough: 0.9 },
   dome: { geo: new THREE.SphereGeometry(1, 8, 6, 0, Math.PI * 2, 0, Math.PI / 2), rough: 0.8 },
   lit: { geo: new THREE.BoxGeometry(1, 1, 1), rough: 0.6, emissive: true },
+  // Firefly lily orbs. Instance colours tint only the diffuse part, so the glow colour lives here.
+  glow: { geo: new THREE.IcosahedronGeometry(1, 1), rough: 0.4, emissive: '#3DFF7A' },
   glass: { geo: new THREE.BoxGeometry(1, 1, 1), rough: 0.3 },
   puddle: { geo: puddleGeo(), rough: 0.08, metal: 0.35 }
 };
@@ -78,7 +80,7 @@ export function kindMaterial(kind: Kind): THREE.Material {
   return new THREE.MeshStandardMaterial({
     color: '#ffffff', roughness: d.rough, metalness: d.metal ?? 0, flatShading: true,
     side: kind === 'bell' ? THREE.DoubleSide : THREE.FrontSide,
-    ...(d.emissive ? { emissive: '#E8C46A', emissiveIntensity: 0.7 } : {})
+    ...(d.emissive ? { emissive: typeof d.emissive === 'string' ? d.emissive : '#E8C46A', emissiveIntensity: typeof d.emissive === 'string' ? 0.55 : 0.7 } : {})
   });
 }
 

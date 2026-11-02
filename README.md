@@ -1,7 +1,7 @@
 # Overgrowth
 
 Rival flowering plants take over an abandoned concrete city. A live multiplayer
-territory game for 2–8 people in the browser: claim land, grow your stems, and
+territory game for 2–16 people in the browser: claim land, grow your stems, and
 uproot every other mother plant. Shown as a miniature 3D diorama, with a top-down map mode.
 
 See [SPEC.md](SPEC.md) for the full design. The 3D look is ported from
@@ -81,7 +81,9 @@ Arrow keys follow the screen: if you orbit the camera 90°, "up" still means up 
 - **Every team looks different**, not just in colour: morning glory grows vine arches, sunflowers
   tall stalks, lavender spiky tufts, roses dense round shrubs, poppies cups on thin stems, daisies
   a flat white carpet, cherry tiny blossom trees, bluebells weeping fountains of bells, fuchsias dangling drops,
-  hydrangeas big round mopheads, zinnias flat blooms on stiff stems, dahlias big layered blooms. Owned
+  hydrangeas big round mopheads, zinnias flat blooms on stiff stems, dahlias big layered blooms. Players 13–16
+  get imaginary flowers: firefly lilies (glowing orbs on wiry stalks), starbloom (five-point stars over a
+  succulent rosette), frostthorn (a cluster of ice crystals) and stormpuff (big spoked puffs on tall stems). Owned
   soil is tinted with the team colour, and plants get bigger as stacks grow.
 - **Overgrowth**: captured hydrants flourish into ponds with lily pads, reeds and vines up the
   hydrant. Ivy creeps up any building as one player surrounds it; fully surrounded, it's covered
@@ -91,6 +93,8 @@ Arrow keys follow the screen: if you orbit the camera 90°, "up" still means up 
   of the city. Clouds gather 10 turns ahead with a forecast banner, then for 15 turns every
   owned tile under the cloud grows +1 per turn. That pulls everyone to the same place to fight.
 - **Pace**: Relaxed (500 ms ticks, the spec default), Brisk (350 ms) or Frantic (250 ms) for lunch-break games.
+- **Time limit** (host option, off by default): 5, 10, 15 or 20 minutes. A clock shows in the HUD and pulses in the
+  last minute. When it runs out, the most land wins, then the most stems; a tie on both is a draw.
 - **Sound**, all synthesized: captures pluck notes on a pentatonic scale that climbs as your
   streak grows, water splashes, bounced attacks thud, uprooting plays a fanfare, getting
   uprooted plays a sad trombone. Rain when it rains, faint birdsong otherwise.
@@ -163,10 +167,16 @@ reference/    overgrowth-3d.html
   attacks on a mother plant last, otherwise bigger armies first; ties go in seat order, reversed
   every tick, so priority between any two players alternates every move. (Sources: the
   r/generalsio wiki on move priority, and the Softmax generals.io reimplementation's rules.)
-- **Up to 12 players, and the board scales with them**: 2 → 18x18, 3 → 19, 4 → 20, 5 → 22, 6 → 23, 7 → 24,
-  8 → 25, 9 → 26, 10 → 27, 11 → 28, 12 → 29, close to the spec's 20x20 / 26x26. (An earlier version used
+- **Up to 16 players, and the board scales with them**: 2 → 18x18, 3 → 19, 4 → 20, 5 → 22, 6 → 23, 7 → 24,
+  8 → 25, 9 → 26, 10 → 27, 11 → 28, 12 → 29, 13 → 30, 14 → 31, 15 → 32, 16 → 33, close to the spec's 20x20 / 26x26. (An earlier version used
   20 up to 35 per side; playtesters found that too big.) Two players sit at the low end of generals.io 1v1 maps
-  (randomised 18–23 per side); larger games have roughly 70–100 tiles per player.
+  (randomised 18–23 per side); larger games have roughly 70–100 tiles per player (68 at 16).
+- **Time limit is stored in ticks** in the game's rules (minutes × 60 000 / tick length, rounded up to a whole
+  turn), so the engine stays clock-free and replays end on exactly the same tick.
+- **Team colours 13–16** were picked by a script: the 4 colours farthest (in OKLab, also under simulated
+  deuteranopia) from the other 12, the leaf greens, the water blue and the neutral grey. At 16 teams colour
+  can't carry identity alone (Sunflower and Zinnia are already near-identical for deuteranopes), so every team
+  also has its own bloom silhouette and HUD glyph.
 - **Vision is 2 tiles** around everything you own (diagonals included), not the spec's 1. Playtesters found
   1 too foggy. It's `VISION_RADIUS` in `shared/config.ts`.
 - **Map fairness:** each mother gets a "home" water at exactly the same path distance (5–7), and every
@@ -190,7 +200,7 @@ npm run sim -- 300 # headless bot-vs-bot games: crashes, unfinished games, lengt
 3. Multiplayer — done: rooms by link, lobby, teams, host start, bots, spectators, reconnect, 60 s grace.
 4. 3D renderer — done: ported kit, top-down map mode, crisp counts, queue vines, fog of war with last-seen tint, sprouts, grow-in and petal bursts. Tilt-shift was removed after playtesting.
 5. Polish — end screen, awards, replays, synthesized sound, emotes and juice done.
-6. Extras — 12 teams (Poppy, Daisy, Cherry blossom, Bluebell, Fuchsia, Hydrangea, Zinnia, Dahlia added) and up to 12 players; they need a playtest for distinctness. Rule variants: spring showers and pace.
+6. Extras — 16 teams (Poppy, Daisy, Cherry blossom, Bluebell, Fuchsia, Hydrangea, Zinnia, Dahlia, and imaginary Firefly lily, Starbloom, Frostthorn, Stormpuff added) and up to 16 players; they need a playtest for distinctness. Rule variants: spring showers, pace and time limit.
 
 Known gaps: bots are simple (fine for filling seats; games with 5–8 bots run long), frame rate
 has not been measured on real laptop GPUs, and the Cloudflare deployment has only been tested

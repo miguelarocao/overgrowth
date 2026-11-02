@@ -7,7 +7,7 @@ export const CORE_GROWTH_TICKS = TICKS_PER_TURN;
 export const LAND_GROWTH_TICKS = 25 * TICKS_PER_TURN;
 export const DISCONNECT_GRACE_MS = 60_000;
 export const MIN_PLAYERS = 2;
-export const MAX_PLAYERS = 12;
+export const MAX_PLAYERS = 16;
 export const MAX_QUEUE = 300;
 /**
  * How far you see around each owned tile (Chebyshev distance, so diagonals count).
@@ -23,12 +23,24 @@ export const WATER_GARRISON_MAX = 50;
  * up to 35 for 12) too big, so each side is ~15% smaller: 2 players get 18x18 (the low end
  * of generals.io 1v1 maps, which are randomised 18-23 per side), 4 get 20x20 and 8 get
  * 25x25, close to the spec's original 20x20 / 26x26. That's roughly 70-100 tiles per
- * player in bigger games.
+ * player in bigger games (about 68 at 16 players on 33x33).
  */
-const BOARD_SIZES: Record<number, number> = { 2: 18, 3: 19, 4: 20, 5: 22, 6: 23, 7: 24, 8: 25, 9: 26, 10: 27, 11: 28, 12: 29 };
+const BOARD_SIZES: Record<number, number> = {
+  2: 18, 3: 19, 4: 20, 5: 22, 6: 23, 7: 24, 8: 25, 9: 26, 10: 27, 11: 28, 12: 29, 13: 30, 14: 31, 15: 32, 16: 33
+};
 
 export function boardSize(playerCount: number): number {
   return BOARD_SIZES[Math.min(MAX_PLAYERS, Math.max(MIN_PLAYERS, playerCount))];
+}
+
+/** Time limit options for the lobby, in minutes (0 = no limit). */
+export const TIME_LIMITS = [0, 5, 10, 15, 20] as const;
+
+/** Wall-clock minutes at a given tick length, as whole turns of ticks for the engine. */
+export function timeLimitTicks(minutes: number, tickMs: number): number {
+  if (minutes <= 0) return 0;
+  const ticks = Math.round((minutes * 60_000) / tickMs);
+  return ticks + (ticks % TICKS_PER_TURN ? TICKS_PER_TURN - (ticks % TICKS_PER_TURN) : 0);
 }
 
 /** Game pace options (tick length). */

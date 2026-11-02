@@ -23,6 +23,24 @@ function setup() {
   return { room, clock, isTicking: () => ticking };
 }
 
+describe('time limit', () => {
+  it('ends the game when time runs out and says why', () => {
+    const { room } = setup();
+    const a = new FakeConn(), b = new FakeConn();
+    room.join(a, 'A');
+    room.join(b, 'B');
+    room.handle(a, { t: 'setOptions', timeLimit: 5, pace: 'frantic' });
+    room.handle(a, { t: 'start' });
+    const limit = a.last('started')!.rules.timeLimitTicks!;
+    expect(limit).toBe(1200); // 5 min at 250 ms ticks
+    for (let i = 0; i < limit - 1; i++) room.tick();
+    expect(a.last('gameOver')).toBeUndefined();
+    room.tick();
+    // Nobody moved: both mothers have 1 tile and the same stems, so it's a draw on time.
+    expect(b.last('gameOver')).toMatchObject({ reason: 'time', winner: null });
+  });
+});
+
 describe('room lobby', () => {
   it('first joiner hosts; players get distinct teams; only host starts', () => {
     const { room, isTicking } = setup();
@@ -187,11 +205,16 @@ describe('fun bits', () => {
     room.handle(b, { t: 'setOptions', pace: 'frantic' });
     expect(a.last('lobby')!.options.pace).toBe('relaxed');
     room.handle(a, { t: 'setOptions', pace: 'frantic', showers: false });
-    expect(b.last('lobby')!.options).toEqual({ pace: 'frantic', showers: false });
+    expect(b.last('lobby')!.options).toEqual({ pace: 'frantic', showers: false, timeLimit: 0 });
+    room.handle(a, { t: 'setOptions', timeLimit: 7 }); // not an offered option
+    expect(b.last('lobby')!.options.timeLimit).toBe(0);
+    room.handle(a, { t: 'setOptions', timeLimit: 10 });
+    expect(b.last('lobby')!.options.timeLimit).toBe(10);
     room.handle(a, { t: 'start' });
     expect(interval).toBe(250);
     expect(a.last('started')!.tickMs).toBe(250);
     expect(a.last('started')!.rules.showers).toBe(false);
+    expect(a.last('started')!.rules.timeLimitTicks).toBe(2400); // 10 min at 250 ms ticks
     room.handle(a, { t: 'emote', e: 1 });
     room.handle(a, { t: 'emote', e: 2 }); // too soon
     expect(b.all('emote').map((m) => m.e)).toEqual([1]);

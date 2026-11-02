@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { gameResult, hashState, isMoveValid, moveOrder, step, stepDetailed, surrender } from './engine';
+import { gameResult, hashState, leader, isMoveValid, moveOrder, step, stepDetailed, surrender } from './engine';
 import type { Move } from './types';
 import { makeState } from './testutil';
 
@@ -153,7 +153,7 @@ describe('capture and elimination', () => {
     expect(r.state.tiles[1]).toMatchObject({ owner: 0, stems: 19, kind: 'water', isMother: false });
     expect(r.state.tiles[2]).toMatchObject({ owner: 0, stems: 4 });
     expect(r.state.tiles[3]).toMatchObject({ owner: 0, stems: 2 });
-    expect(gameResult(r.state)).toEqual({ over: true, winner: 0 });
+    expect(gameResult(r.state)).toEqual({ over: true, winner: 0, reason: 'conquest' });
   });
 
   it('surrender turns land neutral and the mother into neutral water', () => {
@@ -169,6 +169,29 @@ describe('capture and elimination', () => {
     const s = makeState(['A.1'], 2, { 2: 5 });
     s.players[1].alive = false;
     expect(isMoveValid(s, 1, mv(2, 'left'))).toBe(false);
+  });
+});
+
+describe('time limit', () => {
+  it('ends on the limit tick; most land wins, then most stems, and a full tie is a draw', () => {
+    const s = makeState(['A00.B1'], 2, { 0: 5, 4: 50, 5: 9 });
+    s.rules = { showers: false, timeLimitTicks: 10 };
+    s.tick = 9;
+    expect(gameResult(s)).toEqual({ over: false, winner: null, reason: null });
+    const n = step(s, new Map());
+    expect(n.tick).toBe(10);
+    // Player 0 has 3 tiles against player 1's 2, despite far fewer stems.
+    expect(gameResult(n)).toEqual({ over: true, winner: 0, reason: 'time' });
+    const tied = makeState(['A0.B1'], 2, { 0: 3, 1: 4, 3: 3, 4: 4 });
+    expect(leader(tied)).toBe(null);
+    tied.tiles[4].stems = 5;
+    expect(leader(tied)).toBe(1); // same land, more stems
+  });
+
+  it('no limit means play on', () => {
+    const s = makeState(['A.B'], 2);
+    s.tick = 1e6;
+    expect(gameResult(s).over).toBe(false);
   });
 });
 

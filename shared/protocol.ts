@@ -16,6 +16,8 @@ export interface LobbyPlayer {
 export interface RoomOptions {
   showers: boolean;
   pace: Pace;
+  /** Minutes, one of TIME_LIMITS; 0 = play until one mother plant is left. */
+  timeLimit: number;
 }
 
 export interface Weather {
@@ -45,7 +47,7 @@ export type ClientMsg =
   | { t: 'addBot' }
   | { t: 'removeBot'; seat: number }
   | { t: 'start' }
-  | { t: 'setOptions'; showers?: boolean; pace?: Pace }
+  | { t: 'setOptions'; showers?: boolean; pace?: Pace; timeLimit?: number }
   | { t: 'emote'; e: number }
   | { t: 'queue'; seq: number; moves: QueuedMove[] }
   | { t: 'clearQueue'; seq: number }
@@ -87,7 +89,7 @@ export type ServerMsg =
     }
   | { t: 'eliminated'; player: PlayerId; by: PlayerId | null }
   | { t: 'emote'; name: string; team: string; player: PlayerId | null; e: number }
-  | { t: 'gameOver'; winner: PlayerId | null; replayId: string | null; awards: Award[] }
+  | { t: 'gameOver'; winner: PlayerId | null; replayId: string | null; awards: Award[]; reason?: 'conquest' | 'time' }
   | { t: 'error'; message: string };
 
 export const kindCode = (k: TileKind) => KINDS.indexOf(k);

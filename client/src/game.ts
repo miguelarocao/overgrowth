@@ -4,7 +4,7 @@
 import { neighbor } from '../../shared/grid';
 import { decodeTile, type PlayerInfo, type ServerMsg } from '../../shared/protocol';
 import { sendAmount } from '../../shared/engine';
-import { KINDS, type Building, type Dir, type PlayerId, type QueuedMove, type TileKind, type ViewTile } from '../../shared/types';
+import { KINDS, type Building, type Dir, type PlayerId, type QueuedMove, type Rules, type TileKind, type ViewTile } from '../../shared/types';
 import type { ClientMsg } from '../../shared/protocol';
 
 /** How many of your biggest stacks Space / Tab cycles through. */
@@ -32,6 +32,8 @@ export class ClientGame {
   readonly buildings: Building[];
   readonly fountain: number;
   readonly tickMs: number;
+  /** Rule variants in play; `timeLimitTicks` drives the HUD clock. */
+  readonly rules: Rules;
   tiles: ViewTile[];
   /** Owner when we last saw a tile, for the faint "last seen" tint. */
   lastSeen: (PlayerId | null)[];
@@ -58,11 +60,18 @@ export class ClientGame {
     this.buildings = msg.buildings;
     this.fountain = msg.fountain;
     this.tickMs = msg.tickMs;
+    this.rules = msg.rules;
     this.you = msg.you;
     this.players = msg.players;
     this.tick = msg.tick;
     this.tiles = msg.terrain.map((k) => ({ kind: KINDS[k] as TileKind, owner: null, stems: 0, isMother: false, visible: false }));
     this.lastSeen = this.tiles.map(() => null);
+  }
+
+  /** Milliseconds left on the time limit, or null when there is none. */
+  get timeLeftMs(): number | null {
+    const limit = this.rules?.timeLimitTicks ?? 0;
+    return limit > 0 ? Math.max(0, (limit - this.tick) * this.tickMs) : null;
   }
 
   get alive() {

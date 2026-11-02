@@ -36,6 +36,12 @@ export interface PlayerState {
 export interface Rules {
   /** Spring showers: a rain cloud periodically settles over part of the city; owned tiles under it grow every turn. */
   showers: boolean;
+  /**
+   * Time limit in ticks (0 or absent: none). When it runs out, the player with the most land
+   * wins (then most stems; still tied is a draw). Stored in ticks, not minutes, so the engine
+   * stays clock-free and replays end on exactly the same tick.
+   */
+  timeLimitTicks?: number;
 }
 
 export const DEFAULT_RULES: Rules = { showers: true };

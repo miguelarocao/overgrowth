@@ -32,6 +32,8 @@ export class Hud {
   readonly root: HTMLElement;
   private q = <T extends HTMLElement>(s: string) => this.root.querySelector<T>(s)!;
   private overShown = false;
+  /** null until the first update; then whether the last-minute callout has been shown. */
+  private clockWarned: boolean | null = null;
   private emotes = new Map<number, { e: number; until: number }>();
 
   constructor(view: View3D, private act: HudActions, label: string, replay = false) {
@@ -40,7 +42,7 @@ export class Hud {
       <header class="top">
         <div class="brand">
           <h1>Overgrowth</h1>
-          <p><span id="turn">TURN 0</span> · ${esc(label)} <span class="status-pill" id="status" hidden></span></p>
+          <p><span id="turn">TURN 0</span> · ${esc(label)} <span class="clock" id="clock" hidden title="Time limit: when it runs out, the most land wins"></span> <span class="status-pill" id="status" hidden></span></p>
           <div class="round" id="round" title="Every 25 turns, all your land grows +1 stem"><span id="round-text">Round 1 · land grows in 25</span><span class="round-bar"><i id="round-fill"></i></span></div>
         </div>
         <div class="weather" id="weather" hidden aria-live="polite"></div>
@@ -164,11 +166,25 @@ export class Hud {
   update(g: ClientGame) {
     const turn = Math.floor(g.tick / 2);
     this.q('#turn').textContent = `TURN ${turn}`;
+    const left = g.timeLeftMs;
+    const clock = this.q('#clock');
+    clock.hidden = left === null;
+    if (left !== null) {
+      const s = Math.ceil(left / 1000);
+      clock.textContent = `⏱ ${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
+      clock.classList.toggle('soon', s <= 60 && !g.over);
+      // One heads-up when the last minute starts (not if you joined with less than that left).
+      if (this.clockWarned === null) this.clockWarned = s <= 60;
+      else if (!this.clockWarned && s <= 60 && !g.over) {
+        this.clockWarned = true;
+        this.callout('1 minute left', 'Most land when time runs out wins', '#FFD66B');
+      }
+    }
     // Rounds: every 25 turns all owned land grows +1. Attacking just before it lands steals that +1.
-    const into = turn % 25, left = 25 - into;
-    this.q('#round-text').textContent = `Round ${Math.floor(turn / 25) + 1} · land grows in ${left} ${left === 1 ? 'turn' : 'turns'}`;
+    const into = turn % 25, untilGrowth = 25 - into;
+    this.q('#round-text').textContent = `Round ${Math.floor(turn / 25) + 1} · land grows in ${untilGrowth} ${untilGrowth === 1 ? 'turn' : 'turns'}`;
     this.q('#round-fill').style.width = `${(into / 25) * 100}%`;
-    this.q('#round').classList.toggle('soon', left <= 3);
+    this.q('#round').classList.toggle('soon', untilGrowth <= 3);
     const rows = [...g.players].sort((a, b) => Number(b.alive) - Number(a.alive) || b.land - a.land || b.stems - a.stems);
     const now = performance.now();
     this.q('#rows').innerHTML = rows.map((p, rank) => {
@@ -202,16 +218,16 @@ export class Hud {
     this.q('#sel').textContent = t ? (t.owner === g.you ? `${t.stems} stems` : 'path end') : 'None';
   }
 
-  gameOver(g: ClientGame, winner: number | null, replayId: string | null, canGoLobby: boolean, awards: Award[] = []) {
+  gameOver(g: ClientGame, winner: number | null, replayId: string | null, canGoLobby: boolean, awards: Award[] = [], reason: 'conquest' | 'time' = 'conquest') {
     if (this.overShown) return;
     this.overShown = true;
     const w = g.players.find((p) => p.id === winner);
     const youWon = winner !== null && winner === g.you;
     const box = el(`
       <div class="overlay"><section class="panel card" role="dialog" aria-label="Game over">
-        <div class="eyebrow">Game over · turn ${Math.floor(g.tick / 2)}</div>
+        <div class="eyebrow">${reason === 'time' ? "Time's up" : 'Game over'} · turn ${Math.floor(g.tick / 2)}</div>
         <h2 class="title">${youWon ? pickOf(WIN_TITLES) : g.you !== null && w ? pickOf(LOSE_TITLES) : w ? `${esc(w.name)} wins` : 'Draw'}</h2>
-        ${w ? `<p class="lede" style="display:flex;gap:8px;align-items:center">${glyph(w.team, 22)} ${youWon ? `Your ${esc(TEAM_BY_KEY[w.team]?.name.toLowerCase() ?? 'garden')}` : esc(w.name)} took the city with ${w.land} ${w.land === 1 ? 'tile' : 'tiles'}.</p>` : ''}
+        ${w ? `<p class="lede" style="display:flex;gap:8px;align-items:center">${glyph(w.team, 22)} ${youWon ? `Your ${esc(TEAM_BY_KEY[w.team]?.name.toLowerCase() ?? 'garden')}` : esc(w.name)} ${reason === 'time' ? 'had the biggest garden when time ran out:' : 'took the city with'} ${w.land} ${w.land === 1 ? 'tile' : 'tiles'}.</p>` : reason === 'time' ? '<p class="lede">Time ran out with the top gardens exactly tied.</p>' : ''}
         ${awards.length ? `<ul class="awards">${awards.map((a) => {
           const p = g.players.find((x) => x.id === a.player);
           return `<li><span class="icon">${a.icon}</span><span><b>${esc(a.title)}</b><span class="who">${p ? glyph(p.team, 14) : ''} ${esc(p?.name ?? '?')}</span><small>${esc(a.detail)}</small></span></li>`;

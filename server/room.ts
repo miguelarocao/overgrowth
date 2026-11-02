@@ -3,7 +3,7 @@
 // runs on the server and in the browser for offline play. Clocks, timers and
 // randomness are injected through RoomHooks; the engine itself stays pure.
 import { Bot } from '../bots/bot';
-import { DISCONNECT_GRACE_MS, EMOTES, MAX_PLAYERS, MIN_PLAYERS, PACES, type Pace } from '../shared/config';
+import { DISCONNECT_GRACE_MS, EMOTES, MAX_PLAYERS, MIN_PLAYERS, PACES, TIME_LIMITS, timeLimitTicks, type Pace } from '../shared/config';
 import { computeAwards, type Award } from '../shared/awards';
 import { forecastAt, showerAt } from '../shared/weather';
 import { playerStats } from '../shared/engine';
@@ -65,8 +65,9 @@ export class Room {
   replayId: string | null = null;
   lastReplay: Replay | null = null;
   awards: Award[] = [];
-  options: RoomOptions = { showers: true, pace: 'relaxed' };
+  options: RoomOptions = { showers: true, pace: 'relaxed', timeLimit: 0 };
   tickMs: number = PACES.relaxed;
+  endReason: 'conquest' | 'time' = 'conquest';
   private lastEmote = new WeakMap<Conn, number>();
   lastActive: number;
   private nextSeat = 1;
@@ -132,7 +133,7 @@ export class Room {
     else {
       this.sendStarted(conn, seat?.pid ?? null);
       this.sendTickTo(conn, seat ?? null, null);
-      if (this.phase === 'over') conn.send({ t: 'gameOver', winner: this.winner, replayId: this.replayId, awards: this.awards });
+      if (this.phase === 'over') conn.send({ t: 'gameOver', winner: this.winner, replayId: this.replayId, awards: this.awards, reason: this.endReason });
     }
   }
 
@@ -191,6 +192,7 @@ export class Room {
         if (isHost && this.phase === 'lobby') {
           if (typeof msg.showers === 'boolean') this.options.showers = msg.showers;
           if (typeof msg.pace === 'string' && msg.pace in PACES) this.options.pace = msg.pace as Pace;
+          if (typeof msg.timeLimit === 'number' && (TIME_LIMITS as readonly number[]).includes(msg.timeLimit)) this.options.timeLimit = msg.timeLimit;
           this.broadcastLobby();
         }
         break;
@@ -275,8 +277,8 @@ export class Room {
 
   private startGame() {
     const seed = Math.floor(this.hooks.random() * 2 ** 31);
-    const state = generateMap(seed, this.seats.length, { showers: this.options.showers });
     this.tickMs = PACES[this.options.pace];
+    const state = generateMap(seed, this.seats.length, { showers: this.options.showers, timeLimitTicks: timeLimitTicks(this.options.timeLimit, this.tickMs) });
     this.awards = [];
     this.seats.forEach((s, i) => {
       s.pid = i;
@@ -374,6 +376,7 @@ export class Room {
     this.hooks.stopTicking();
     this.phase = 'over';
     this.winner = rep.winner;
+    this.endReason = rep.reason ?? 'conquest';
     const session = this.session!;
     const id = `${this.code}-${Math.floor(this.hooks.now()).toString(36)}`;
     const replay = session.toReplay(id, this.seats.map((s) => ({ name: s.name, team: s.team })), rep.winner, this.tickMs);
@@ -388,7 +391,7 @@ export class Room {
     this.broadcastTick(rep); // unfogged final board
     for (const e of rep.eliminations) this.broadcast({ t: 'eliminated', player: e.player, by: e.by });
     for (const p of rep.surrendered) this.broadcast({ t: 'eliminated', player: p, by: null });
-    this.broadcast({ t: 'gameOver', winner: this.winner, replayId: this.replayId, awards: this.awards });
+    this.broadcast({ t: 'gameOver', winner: this.winner, replayId: this.replayId, awards: this.awards, reason: this.endReason });
   }
 
   /** Run about once a second: disconnect grace periods and host hand-over. */

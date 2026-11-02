@@ -1,4 +1,4 @@
-import { MAX_PLAYERS, PACES, boardSize, type Pace } from '../../../shared/config';
+import { MAX_PLAYERS, PACES, TIME_LIMITS, boardSize, type Pace } from '../../../shared/config';
 import { sfx } from '../audio';
 import type { LobbyPlayer, RoomOptions } from '../../../shared/protocol';
 import { TEAMS, TEAM_BY_KEY } from '../../../shared/teams';
@@ -70,8 +70,8 @@ export interface LobbyActions {
   leave: () => void;
 }
 
-/** "Fill with bots" tops up to the next of 4, 8 or 12 players. */
-const fillTarget = (n: number) => (n < 4 ? 4 : n < 8 ? 8 : MAX_PLAYERS);
+/** "Fill with bots" tops up to the next of 4, 8, 12 or 16 players. */
+const fillTarget = (n: number) => Math.min(MAX_PLAYERS, (Math.floor(n / 4) + 1) * 4);
 
 const PACE_LABEL: Record<Pace, string> = { relaxed: 'Relaxed', brisk: 'Brisk', frantic: 'Frantic' };
 
@@ -114,8 +114,11 @@ export function lobbyScreen(msg: { code: string; players: LobbyPlayer[]; host: n
           <span class="seg" role="group" aria-label="Pace">
             ${(Object.keys(PACES) as Pace[]).map((p) => `<button data-pace="${p}" aria-pressed="${msg.options.pace === p}" ${isHost ? '' : 'disabled'}>${PACE_LABEL[p]}</button>`).join('')}
           </span>
+          <span class="seg" role="group" aria-label="Time limit">
+            ${TIME_LIMITS.map((m) => `<button data-limit="${m}" aria-pressed="${(msg.options.timeLimit ?? 0) === m}" ${isHost ? '' : 'disabled'}>${m ? `${m} min` : '⏱ No limit'}</button>`).join('')}
+          </span>
         </div>
-        <span class="note">${msg.options.showers ? 'A rain cloud drifts over part of the city now and then. Land under it grows every turn: worth fighting over.' : 'Classic rules.'} ${msg.options.pace === 'relaxed' ? '2 ticks a second.' : msg.options.pace === 'brisk' ? 'About 3 ticks a second.' : '4 ticks a second. Hold on to your leaves.'}</span>
+        <span class="note">${msg.options.showers ? 'A rain cloud drifts over part of the city now and then. Land under it grows every turn: worth fighting over.' : 'Classic rules.'} ${msg.options.pace === 'relaxed' ? '2 ticks a second.' : msg.options.pace === 'brisk' ? 'About 3 ticks a second.' : '4 ticks a second. Hold on to your leaves.'} ${msg.options.timeLimit ? `After ${msg.options.timeLimit} minutes the biggest garden (most land) wins.` : 'Play until one mother plant is left.'}</span>
       </div>
       ${me ? `
       <label class="field"><span class="eyebrow">Your name</span>
@@ -150,6 +153,7 @@ export function lobbyScreen(msg: { code: string; players: LobbyPlayer[]; host: n
     act.send({ t: 'rename', name: rename.value });
   });
   root.querySelectorAll<HTMLButtonElement>('[data-showers]').forEach((b) => b.addEventListener('click', () => act.send({ t: 'setOptions', showers: b.dataset.showers === '1' })));
+  root.querySelectorAll<HTMLButtonElement>('[data-limit]').forEach((b) => b.addEventListener('click', () => act.send({ t: 'setOptions', timeLimit: Number(b.dataset.limit) })));
   root.querySelectorAll<HTMLButtonElement>('[data-pace]').forEach((b) => b.addEventListener('click', () => act.send({ t: 'setOptions', pace: b.dataset.pace })));
   root.querySelector('#bot')?.addEventListener('click', () => act.send({ t: 'addBot' }));
   root.querySelector('#fill')?.addEventListener('click', () => {

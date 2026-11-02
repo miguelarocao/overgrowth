@@ -204,7 +204,7 @@ export class World {
     this.scene.add(this.ground);
 
     this.bushTeam = new Array(N).fill(null);
-    this.trees = new ChunkPool(maxCounts((t, s) => R.tree(t, rngFrom(s))), 16);
+    this.trees = new ChunkPool(maxCounts((t, s) => R.tree(t, rngFrom(s))), MAX_PLAYERS + 4);
     this.hydrants = new ChunkPool(R.hydrant(rngFrom(1)).list.reduce((acc, it) => ({ ...acc, [it.kind]: (acc[it.kind] ?? 0) + 1 }), {} as Partial<Record<Kind, number>>), N);
     this.sprouts = new ChunkPool({ stem: 2, ball: 4 }, N, { shadows: false });
     this.scene.add(this.trees.group, this.hydrants.group, this.sprouts.group, this.petals.mesh);

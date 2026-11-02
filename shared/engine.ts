@@ -168,11 +168,34 @@ export function alivePlayers(state: GameState): PlayerId[] {
   return state.players.filter((p) => p.alive).map((p) => p.id);
 }
 
-/** The winner once at most one player is left; undefined while the game goes on. */
-export function gameResult(state: GameState): { over: boolean; winner: PlayerId | null } {
+export type EndReason = 'conquest' | 'time';
+
+export interface GameResult {
+  over: boolean;
+  winner: PlayerId | null;
+  /** Why it ended: the last mother plant standing, or the time limit. null while playing. */
+  reason: EndReason | null;
+}
+
+/**
+ * The game ends when at most one player is left, or when the time limit (if any) runs out.
+ * On time, the biggest garden by land wins, then by stems; a tie on both is a draw (null).
+ */
+export function gameResult(state: GameState): GameResult {
   const alive = alivePlayers(state);
-  if (alive.length > 1) return { over: false, winner: null };
-  return { over: true, winner: alive.length === 1 ? alive[0] : null };
+  if (alive.length <= 1) return { over: true, winner: alive.length === 1 ? alive[0] : null, reason: 'conquest' };
+  const limit = state.rules?.timeLimitTicks ?? 0;
+  if (limit <= 0 || state.tick < limit) return { over: false, winner: null, reason: null };
+  return { over: true, winner: leader(state, alive), reason: 'time' };
+}
+
+/** The alive player with the most land, then most stems; null if the top two tie on both. */
+export function leader(state: GameState, alive = alivePlayers(state)): PlayerId | null {
+  const st = playerStats(state);
+  const ranked = [...alive].sort((a, b) => st[b].land - st[a].land || st[b].stems - st[a].stems);
+  const [a, b] = ranked;
+  if (b !== undefined && st[a].land === st[b].land && st[a].stems === st[b].stems) return null;
+  return a ?? null;
 }
 
 export interface PlayerStats {

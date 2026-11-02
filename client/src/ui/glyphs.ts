@@ -30,6 +30,14 @@ export function glyph(team: string, size = 18): string {
       return `<svg ${s}><rect x="9.3" y="11" width="1.4" height="8" fill="#5F8D41"/><ellipse cx="10" cy="9" rx="8" ry="3.4" fill="${c}"/><ellipse cx="10" cy="8.3" rx="5" ry="2.2" fill="#9CBF22"/><circle cx="10" cy="7.8" r="1.6" fill="#E8782A"/></svg>`;
     case 'dahlia':
       return `<svg ${s}><g fill="${c}">${[0, 30, 60, 90, 120, 150].map((a) => `<ellipse cx="10" cy="3" rx="1.6" ry="3.2" transform="rotate(${a} 10 10)"/><ellipse cx="10" cy="3" rx="1.6" ry="3.2" transform="rotate(${a + 180} 10 10)"/>`).join('')}</g><circle cx="10" cy="10" r="3.4" fill="#B4436F"/><circle cx="10" cy="10" r="1.6" fill="#5E1533"/></svg>`;
+    case 'orb':
+      return `<svg ${s}><path d="M10 19 Q8 13 11 9" stroke="#3E6B3A" stroke-width="1.3" fill="none"/><circle cx="11" cy="6.5" r="5.5" fill="${c}" opacity="0.35"/><circle cx="11" cy="6.5" r="3.4" fill="${c}"/></svg>`;
+    case 'star':
+      return `<svg ${s}><path d="M10 1.5 L12.4 7.2 L18.5 7.6 L13.8 11.5 L15.3 17.5 L10 14.2 L4.7 17.5 L6.2 11.5 L1.5 7.6 L7.6 7.2 Z" fill="${c}"/><circle cx="10" cy="10" r="1.8" fill="#FFF0FF"/></svg>`;
+    case 'crystal':
+      return `<svg ${s}><g fill="${c}" stroke="#0E5E55" stroke-width="0.6"><path d="M10 1 L13 6 L12 18 L8 18 L7 6 Z"/><path d="M4 7 L6.5 10 L7 18 L4 18 L2.5 11 Z"/><path d="M16 6 L17.5 11 L16 18 L13 18 L13.5 10 Z"/></g></svg>`;
+    case 'puff':
+      return `<svg ${s}><g stroke="#9FB8CC" stroke-width="1">${[0, 30, 60, 90, 120, 150, 180, 210, 240, 270, 300, 330].map((a) => `<line x1="10" y1="10" x2="${(10 + 7.5 * Math.cos((a * Math.PI) / 180)).toFixed(1)}" y2="${(10 + 7.5 * Math.sin((a * Math.PI) / 180)).toFixed(1)}"/>`).join('')}</g><g fill="${c}">${[0, 30, 60, 90, 120, 150, 180, 210, 240, 270, 300, 330].map((a) => `<circle cx="${(10 + 7.5 * Math.cos((a * Math.PI) / 180)).toFixed(1)}" cy="${(10 + 7.5 * Math.sin((a * Math.PI) / 180)).toFixed(1)}" r="1.6"/>`).join('')}</g><circle cx="10" cy="10" r="2.6" fill="#24496A"/></svg>`;
     default:
       return `<svg ${s}><circle cx="10" cy="10" r="7" fill="${c}"/></svg>`;
   }

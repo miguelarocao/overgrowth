@@ -1,5 +1,5 @@
 import { MAX_QUEUE } from './config';
-import { gameResult, isMoveValid, moveDest, stepDetailed, surrender, type Elimination } from './engine';
+import { gameResult, isMoveValid, moveDest, stepDetailed, surrender, type Elimination, type EndReason } from './engine';
 import type { GameState, Move, PlayerId, QueuedMove } from './types';
 import { DIRS } from './types';
 import type { Replay, ReplayTick } from './replay';
@@ -14,6 +14,7 @@ export interface TickReport {
   surrendered: PlayerId[];
   over: boolean;
   winner: PlayerId | null;
+  reason: EndReason | null;
 }
 
 /**
@@ -134,8 +135,8 @@ export class GameSession {
     if (surrendered.length) rec.s = surrendered;
     this.log.push(rec);
 
-    const { over, winner } = gameResult(this.state);
-    return { tick: this.state.tick, executed, dropped, eliminations: res.eliminations, surrendered, over, winner };
+    const { over, winner, reason } = gameResult(this.state);
+    return { tick: this.state.tick, executed, dropped, eliminations: res.eliminations, surrendered, over, winner, reason };
   }
 
   toReplay(id: string, players: { name: string; team: string }[], winner: PlayerId | null, tickMs?: number): Replay {
